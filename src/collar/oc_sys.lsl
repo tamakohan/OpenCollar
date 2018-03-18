@@ -12,6 +12,7 @@
 
 string g_sDevStage="";
 string g_sCollarVersion="7.1";
+string g_sTamaCollarVersion="1"; // we will reset this to "1" every time we update to a new upstream OpenCollar version
 integer g_iLatestVersion=TRUE;
 float g_fBuildVersion = 200000.0;
 
@@ -30,7 +31,7 @@ integer CMD_WEARER = 503;
 //integer CMD_RLV_RELAY = 507;
 //integer CMD_SAFEWORD = 510;
 //integer CMD_RELAY_SAFEWORD = 511;
-//integer CMD_BLOCKED = 520;
+integer CMD_BLOCKED = 520;
 
 integer NOTIFY = 1002;
 integer NOTIFY_OWNERS = 1003;
@@ -136,6 +137,8 @@ string g_sWeb = "https://raw.githubusercontent.com/OpenCollarTeam/OpenCollar/mas
 integer g_iUpdateAuth;
 integer g_iWillingUpdaters = 0;
 
+string g_sPrefix="";
+integer g_iChannel=1;
 string g_sSafeWord="RED";
 
 //Option Menu variables
@@ -144,6 +147,10 @@ string STEALTH_OFF = "☐ Stealth"; // show the whole device
 string STEALTH_ON = "☑ Stealth"; // hide the whole device
 string LOADCARD = "Load";
 string REFRESH_MENU = "Fix";
+
+string g_sQuoteText = "";
+string g_sQuoteCredit = "";
+integer g_iQuoteRank = CMD_WEARER;
 
 string g_sGlobalToken = "global_";
 
@@ -215,9 +222,16 @@ HelpMenu(key kID, integer iAuth) {
 }
 
 MainMenu(key kID, integer iAuth) {
-    string sPrompt = "\nOpenCollar\t\t"+g_sCollarVersion;
-    sPrompt += "\n\n[secondlife:///app/group/45d71cc1-17fc-8ee4-8799-7164ee264811/about Join the official OpenCollar group to become part of our community.]";
+    string sPrompt = "\n";
+    if (g_iLocked)
+        sPrompt += "🔒 Main Menu";
+    else
+        sPrompt += "🔓 Main Menu";
+    sPrompt += "\nTama's OpenCollar v"+g_sCollarVersion+"."+g_sTamaCollarVersion;
+    sPrompt += "\n\n• Prefix: " + g_sPrefix + "\n• Channel: /" + (string)g_iChannel + "\n• Safeword: "+g_sSafeWord;
     if(!g_iLatestVersion) sPrompt+="\n\nUPDATE AVAILABLE: A new patch has been released.\nPlease install at your earliest convenience. Thanks!";
+    if (g_sQuoteText)
+        sPrompt += "\n\n" + "“ " + g_sQuoteText + " ”\n ― " + "secondlife:///app/agent/"+g_sQuoteCredit+"/about";
     //Debug("max memory used: "+(string)llGetSPMaxMemory());
     list lStaticButtons=["Apps"];
     if (g_iAnimsMenu) lStaticButtons+="Animations";
@@ -249,6 +263,7 @@ UserCommand(integer iNum, string sStr, key kID, integer fromMenu) {
     } else if (sStr == "info") {
         string sMessage = "\n\nModel: "+llGetObjectName();
         sMessage += "\nOpenCollar Version: "+g_sCollarVersion+g_sDevStage+" ("+(string)g_fBuildVersion+")";
+        sMessage += "\nModified by Tama (v"+g_sCollarVersion+"."+g_sTamaCollarVersion+")";
         sMessage += "\nUser: "+llGetUsername(g_kWearer);
         sMessage += "\nPrefix: %PREFIX%\nChannel: %CHANNEL%\nSafeword: "+g_sSafeWord;
         llMessageLinked(LINK_DIALOG,NOTIFY,"1"+sMessage,kID);
@@ -510,6 +525,7 @@ StartUpdate(){
 
 default {
     state_entry() {
+        g_sPrefix = llToLower(llGetSubString(llKey2Name(llGetOwner()), 0,1));
         g_kWearer = llGetOwner();
         if (!llGetStartParameter())
             news_request = llHTTPRequest(g_sWeb+"news.txt", [HTTP_METHOD, "GET", HTTP_VERBOSE_THROTTLE, FALSE], "");
@@ -637,7 +653,23 @@ default {
                 else if ((key)sValue!=NULL_KEY || llGetInventoryType(sValue)==INVENTORY_SOUND) g_sUnlockSound=sValue;
             } else if (sToken == g_sGlobalToken+"safeword") g_sSafeWord = sValue;
             else if (sToken == "intern_dist") g_sOtherDist = sValue;
-            else if (sStr == "settings=sent") {
+            else if (sToken == g_sGlobalToken+"quote") {
+                if (llStringLength(sValue) >= 40) {
+                    string t_sQuoteCredit = llGetSubString(sValue, -39, -4);
+                    if ((key) t_sQuoteCredit) {
+                        integer t_iQuoteRank = (integer) llGetSubString(sValue, -3, -1);
+                        if (t_iQuoteRank >= CMD_OWNER && t_iQuoteRank <= CMD_BLOCKED) {
+                            g_sQuoteText = llGetSubString(sValue, 0, -40);
+                            g_sQuoteCredit = t_sQuoteCredit;
+                            g_iQuoteRank = t_iQuoteRank;
+                        }
+                    }
+                }
+            } else if (sToken == g_sGlobalToken+"prefix") {
+                g_sPrefix = sValue;
+            } else if (sToken == g_sGlobalToken+"channel") {
+                g_iChannel = (integer) sValue;
+            } else if (sStr == "settings=sent") {
                 if (g_iNews) news_request = llHTTPRequest(g_sWeb+"news.txt", [HTTP_METHOD, "GET", HTTP_VERBOSE_THROTTLE, FALSE], "");
             }
         } else if (iNum == DIALOG_TIMEOUT) {
