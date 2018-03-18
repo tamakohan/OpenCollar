@@ -72,8 +72,8 @@ string UPMENU = "BACK";
 
 integer g_iOpenAccess; // 0: disabled, 1: openaccess
 integer g_iLimitRange=1; // 0: disabled, 1: limited
-integer g_iOwnSelf; // self-owned wearers
-string g_sFlavor = "OwnSelf";
+integer g_iVanilla; // self-owned wearers
+string g_sFlavor = "Vanilla";
 
 list g_lMenuIDs;
 integer g_iMenuStride = 3;
@@ -123,7 +123,7 @@ AuthMenu(key kAv, integer iAuth) {
     else lButtons += ["Group ☑"];    //unset group
     if (g_iOpenAccess) lButtons += ["Public ☑"];    //set open access
     else lButtons += ["Public ☐"];    //unset open access
-    if (g_iOwnSelf) lButtons += g_sFlavor+" ☑";    //add wearer as owner
+    if (g_iVanilla) lButtons += g_sFlavor+" ☑";    //add wearer as owner
     else lButtons += g_sFlavor+" ☐";    //remove wearer as owner
 
     lButtons += ["Runaway","Access List"];
@@ -153,12 +153,12 @@ RemPersonMenu(key kID, string sToken, integer iAuth) {
     }
 }
 
-OwnSelfOff(key kID) {
-    g_iOwnSelf = FALSE;
+VanillaOff(key kID) {
+    g_iVanilla = FALSE;
     if (kID == g_sWearerID)
-        llMessageLinked(LINK_DIALOG,NOTIFY,"0"+"\n\nYou no longer own yourself.\n",kID);
+        llMessageLinked(LINK_DIALOG,NOTIFY,"0"+"\n\nVanilla disabled. You no longer have full control over your collar, unless you have no owners.\n",kID);
     else
-        llMessageLinked(LINK_DIALOG,NOTIFY,"0"+"\n\n%WEARERNAME% does no longer own themselves.\n",kID);
+        llMessageLinked(LINK_DIALOG,NOTIFY,"0"+"\n\nVanilla disabled for %WEARERNAME%. They are now at your (and any other owners') mercy.\n",kID);
 }
 
 RemovePerson(string sPersonID, string sToken, key kCmdr, integer iPromoted) {
@@ -178,12 +178,12 @@ RemovePerson(string sPersonID, string sToken, key kCmdr, integer iPromoted) {
     } else {
         integer index = llListFindList(lPeople,[sPersonID]);
         if (~index) {
-            if (sToken == "owner" && sPersonID == g_sWearerID) OwnSelfOff(kCmdr);
+            if (sToken == "owner" && sPersonID == g_sWearerID) VanillaOff(kCmdr);
             lPeople = llDeleteSubList(lPeople,index,index);
             if (!iPromoted) llMessageLinked(LINK_DIALOG,NOTIFY,"0"+NameURI(sPersonID)+" removed from " + sToken + " list.",kCmdr);
             iFound = TRUE;
         } else if (llToLower(sPersonID) == "remove all") {
-            if (sToken == "owner" && ~llListFindList(lPeople,[g_sWearerID])) OwnSelfOff(kCmdr);
+            if (sToken == "owner" && ~llListFindList(lPeople,[g_sWearerID])) VanillaOff(kCmdr);
             llMessageLinked(LINK_DIALOG,NOTIFY,"1"+sToken+" list cleared.",kCmdr);
             lPeople = [];
             iFound = TRUE;
@@ -236,7 +236,7 @@ AddUniquePerson(string sPersonID, string sToken, key kID) {
                 llMessageLinked(LINK_DIALOG,NOTIFY,"0"+"\n\nOops!\n\n"+NameURI(sPersonID)+" is already Owner! You should really trust them.\n",kID);
                 return;
             } else if (sPersonID==g_sWearerID) {
-                llMessageLinked(LINK_DIALOG,NOTIFY,"0"+"\n\nOops!\n\n"+NameURI(sPersonID)+" doesn't belong on this list as the wearer of the %DEVICETYPE%. Instead try: /%CHANNEL% %PREFIX% ownself on\n",kID);
+                llMessageLinked(LINK_DIALOG,NOTIFY,"0"+"\n\nOops!\n\n"+NameURI(sPersonID)+" doesn't belong on this list as the wearer of the %DEVICETYPE%. Instead try: /%CHANNEL% %PREFIX% vanilla on\n",kID);
                 return;
             }
         } else if (sToken=="tempowner") {
@@ -253,7 +253,7 @@ AddUniquePerson(string sPersonID, string sToken, key kID) {
         } else return;
         if (! ~llListFindList(lPeople, [sPersonID])) { //owner is not already in list.  add him/her
             lPeople += sPersonID;
-            if (sPersonID == g_sWearerID && sToken == "owner") g_iOwnSelf = TRUE;
+            if (sPersonID == g_sWearerID && sToken == "owner") g_iVanilla = TRUE;
         } else {
             llMessageLinked(LINK_DIALOG,NOTIFY,"0"+NameURI(sPersonID)+" is already registered as "+sToken+".",kID);
             return;
@@ -271,9 +271,9 @@ AddUniquePerson(string sPersonID, string sToken, key kID) {
         if (sToken == "owner") {
             if (sPersonID == g_sWearerID) {
                 if (kID == g_sWearerID)
-                    llMessageLinked(LINK_DIALOG,NOTIFY,"0"+"\n\nCongratulations, you own yourself now.\n",g_sWearerID);
+                    llMessageLinked(LINK_DIALOG,NOTIFY,"0"+"\n\nVanilla enabled. You will now retain full control over your collar, even if you add an owner.\n",g_sWearerID);
                 else
-                    llMessageLinked(LINK_DIALOG,NOTIFY,"0"+"\n\n%WEARERNAME% is their own Owner now.\n",kID);
+                    llMessageLinked(LINK_DIALOG,NOTIFY,"0"+"\n\nVanilla enabled for %WEARERNAME%. They will now have full control over their collar.\n",kID);
             } else
                 llMessageLinked(LINK_DIALOG,NOTIFY,"0"+"\n\n%WEARERNAME% belongs to you now.\n\nSee [https://github.com/OpenCollarTeam/OpenCollar/wiki/Access here] what that means!\n",sPersonID);
         }
@@ -296,33 +296,32 @@ SayOwners() {  // Give a "you are owned by" message, nicely formatted.
     if (iCount) {
         list lTemp = g_lOwner;
         integer index = llListFindList(lTemp, [g_sWearerID]);
-        //if wearer is also owner, move the key to the end of the list.
-        if (~index) lTemp = llDeleteSubList(lTemp,index,index) + [g_sWearerID];
+        //integer vanilla = FALSE;
+        // don't show wearer in the owner list, actually don't show vanilla here at all for now.
+        if (~index) {
+            lTemp = llDeleteSubList(lTemp,index,index);
+            iCount -= 1;
+            //vanilla = TRUE;
+        }
         string sMsg = "You belong to ";
         if (iCount == 1) {
-            if (llList2Key(lTemp,0)==g_sWearerID)
-                sMsg += "yourself.";
-            else
-                sMsg += NameURI(llList2String(lTemp,0))+".";
+            sMsg += NameURI(llList2String(lTemp,0))+".";
         } else if (iCount == 2) {
-            sMsg +=  NameURI(llList2String(lTemp,0))+" and ";
-            if (llList2String(lTemp,1)==g_sWearerID)
-                sMsg += "yourself.";
-            else
-                sMsg += NameURI(llList2Key(lTemp,1))+".";
+            sMsg += NameURI(llList2String(lTemp,0))+" and ";
+            sMsg += NameURI(llList2String(lTemp,1))+".";
         } else {
             index=0;
             do {
                 sMsg += NameURI(llList2String(lTemp,index))+", ";
                 index+=1;
-            } while (index<iCount-1);
-            if (llList2String(lTemp,index) == g_sWearerID)
-                sMsg += "and yourself.";
-            else
-                sMsg += "and "+NameURI(llList2String(lTemp,index))+".";
+            } while (index<iCount-2);
+            sMsg += NameURI(llList2String(lTemp,index))+" and "+NameURI(llList2String(lTemp,index+1))+".";
         }
+        //if (vanilla)
+        //    sMsg += " Vanilla enabled.";
+        //else
+        //    sMsg += " Vanilla disabled.";
         llMessageLinked(LINK_DIALOG,NOTIFY,"0"+sMsg,g_sWearerID);
- //       Debug("Lists Loaded!");
     }
 }
 
@@ -376,10 +375,16 @@ UserCommand(integer iNum, string sStr, key kID, integer iRemenu) { // here iNum:
     else if (sStr == "list") {   //say owner, secowners, group
         if (iNum == CMD_OWNER || kID == g_sWearerID) {
             //Do Owners list
+            integer iVanilla = FALSE;
             integer iLength = llGetListLength(g_lOwner);
             string sOutput="";
-            while (iLength)
-                sOutput += "\n" + NameURI(llList2String(g_lOwner, --iLength));
+            while (iLength) {
+                string sTemp = llList2String(g_lOwner, --iLength);
+                if (sTemp == g_sWearerID)
+                    iVanilla = TRUE;
+                else
+                    sOutput += "\n" + NameURI(sTemp);
+            }
             if (sOutput) llMessageLinked(LINK_DIALOG,NOTIFY,"0"+"Owners: "+sOutput,kID);
             else llMessageLinked(LINK_DIALOG,NOTIFY,"0"+"Owners: none",kID);
             iLength = llGetListLength(g_lTempOwner);
@@ -402,16 +407,19 @@ UserCommand(integer iNum, string sStr, key kID, integer iRemenu) { // here iNum:
             sOutput="closed";
             if (g_iOpenAccess) sOutput="open";
             llMessageLinked(LINK_DIALOG,NOTIFY,"0"+"Public Access: "+ sOutput,kID);
+            sOutput="off";
+            if (iVanilla) sOutput="on";
+            llMessageLinked(LINK_DIALOG,NOTIFY,"0"+"Vanilla: "+ sOutput,kID);
         }
         else llMessageLinked(LINK_DIALOG,NOTIFY,"0"+"%NOACCESS%",kID);
         if (iRemenu) AuthMenu(kID, iNum);
-    } else if (sCommand == "ownself" || sCommand == llToLower(g_sFlavor)) {
+    } else if (sCommand == "vanilla" || sCommand == llToLower(g_sFlavor)) {
         if (iNum == CMD_OWNER && !~llListFindList(g_lTempOwner,[(string)kID])) {
             if (sAction == "on") {
-                //g_iOwnSelf = TRUE;
+                //g_iVanilla = TRUE;
                 UserCommand(iNum, "add owner " + g_sWearerID, kID, FALSE);
             } else if (sAction == "off") {
-                g_iOwnSelf = FALSE;
+                g_iVanilla = FALSE;
                 UserCommand(iNum, "rm owner " + g_sWearerID, kID, FALSE);
             }
         } else llMessageLinked(LINK_DIALOG,NOTIFY,"0"+"%NOACCESS%", kID);
@@ -574,8 +582,8 @@ default {
                 sToken = llGetSubString(sToken, i + 1, -1);
                 if (sToken == "owner") {
                     g_lOwner = llParseString2List(sValue, [","], []);
-                    if (~llSubStringIndex(sValue,g_sWearerID)) g_iOwnSelf = TRUE;
-                    else g_iOwnSelf = FALSE;
+                    if (~llSubStringIndex(sValue,g_sWearerID)) g_iVanilla = TRUE;
+                    else g_iVanilla = FALSE;
                 } else if (sToken == "tempowner")
                     g_lTempOwner = llParseString2List(sValue, [","], []);
                     //Debug("Tempowners: "+llDumpList2String(g_lTempOwner,","));
@@ -631,8 +639,8 @@ default {
                             "Group ☑","group off",
                             "Public ☐","public on",
                             "Public ☑","public off",
-                            g_sFlavor+" ☐","ownself on",
-                            g_sFlavor+" ☑","ownself off",
+                            g_sFlavor+" ☐","vanilla on",
+                            g_sFlavor+" ☑","vanilla off",
                             "Access List","list",
                             "Runaway","runaway"
                           ];
