@@ -411,10 +411,8 @@ Access:
     public on
     public off
 
-    flavor
-
-    ownself on
-    ownself off
+    vanilla on
+    vanilla off
 
     runaway
 
