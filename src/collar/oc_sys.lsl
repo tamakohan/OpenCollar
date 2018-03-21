@@ -49,6 +49,9 @@ integer LM_SETTING_RESPONSE = 2002;
 integer LM_SETTING_DELETE = 2003;
 //integer LM_SETTING_EMPTY = 2004;
 
+// FIXME unofficial constant here, what's the process for choosing these?
+integer QUOTE_BUILT = 2612;
+
 integer MENUNAME_REQUEST = 3000;
 integer MENUNAME_RESPONSE = 3001;
 integer MENUNAME_REMOVE = 3003;
@@ -148,9 +151,7 @@ string STEALTH_ON = "☑ Stealth"; // hide the whole device
 string LOADCARD = "Load";
 string REFRESH_MENU = "Fix";
 
-string g_sQuoteText = "";
-string g_sQuoteCredit = "";
-integer g_iQuoteRank = CMD_WEARER;
+string g_sBuiltQuoteText = "";
 
 string g_sGlobalToken = "global_";
 
@@ -230,8 +231,8 @@ MainMenu(key kID, integer iAuth) {
     sPrompt += "\nTama's OpenCollar v"+g_sCollarVersion+"."+g_sTamaCollarVersion;
     sPrompt += "\n\n• Prefix: " + g_sPrefix + "\n• Channel: /" + (string)g_iChannel + "\n• Safeword: "+g_sSafeWord;
     if(!g_iLatestVersion) sPrompt+="\n\nUPDATE AVAILABLE: A new patch has been released.\nPlease install at your earliest convenience. Thanks!";
-    if (g_sQuoteText)
-        sPrompt += "\n\n" + "“ " + g_sQuoteText + " ”\n ― " + "secondlife:///app/agent/"+g_sQuoteCredit+"/about";
+    if (g_sBuiltQuoteText)
+        sPrompt += "\n\n" + g_sBuiltQuoteText;
     //Debug("max memory used: "+(string)llGetSPMaxMemory());
     list lStaticButtons=["Apps"];
     if (g_iAnimsMenu) lStaticButtons+="Animations";
@@ -634,8 +635,11 @@ default {
                     SettingsMenu(kAv,iAuth);
                 }
             }
-        } else if (iNum >= CMD_OWNER && iNum <= CMD_WEARER) UserCommand(iNum, sStr, kID, FALSE);
-        else if (iNum == LM_SETTING_RESPONSE) {
+        } else if (iNum >= CMD_OWNER && iNum <= CMD_WEARER) {
+            UserCommand(iNum, sStr, kID, FALSE);
+        } else if (iNum == QUOTE_BUILT) {
+            g_sBuiltQuoteText = sStr;
+        } else if (iNum == LM_SETTING_RESPONSE) {
             list lParams = llParseString2List(sStr, ["="], []);
             string sToken = llList2String(lParams, 0);
             string sValue = llList2String(lParams, 1);
@@ -653,19 +657,7 @@ default {
                 else if ((key)sValue!=NULL_KEY || llGetInventoryType(sValue)==INVENTORY_SOUND) g_sUnlockSound=sValue;
             } else if (sToken == g_sGlobalToken+"safeword") g_sSafeWord = sValue;
             else if (sToken == "intern_dist") g_sOtherDist = sValue;
-            else if (sToken == g_sGlobalToken+"quote") {
-                if (llStringLength(sValue) >= 40) {
-                    string t_sQuoteCredit = llGetSubString(sValue, -39, -4);
-                    if ((key) t_sQuoteCredit) {
-                        integer t_iQuoteRank = (integer) llGetSubString(sValue, -3, -1);
-                        if (t_iQuoteRank >= CMD_OWNER && t_iQuoteRank <= CMD_BLOCKED) {
-                            g_sQuoteText = llGetSubString(sValue, 0, -40);
-                            g_sQuoteCredit = t_sQuoteCredit;
-                            g_iQuoteRank = t_iQuoteRank;
-                        }
-                    }
-                }
-            } else if (sToken == g_sGlobalToken+"prefix") {
+            else if (sToken == g_sGlobalToken+"prefix") {
                 g_sPrefix = sValue;
             } else if (sToken == g_sGlobalToken+"channel") {
                 g_iChannel = (integer) sValue;
