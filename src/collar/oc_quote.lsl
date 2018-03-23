@@ -177,6 +177,9 @@ integer QuoteCheckPerm(key kAv, integer iAuth) {
     // WEARERLOCKEDOUT overrides even vanilla
     if (iPerm == CMD_WEARERLOCKEDOUT)
         return (kAv != g_kWearer);
+    // check WEARER specially because we don't want to allow TRUSTED or GROUP in that case
+    if (iPerm == CMD_WEARER)
+        return (iAuth == CMD_OWNER || iAuth == CMD_WEARER);
     // otherwise normal check
     return (iAuth >= CMD_OWNER && iAuth <= iPerm);
 }
