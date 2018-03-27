@@ -64,6 +64,8 @@ integer g_iQuoteRank = CMD_EVERYONE;
 integer g_iQuoteAllowRank = CMD_EVERYONE;
 integer g_iQuoteExtra = QUOTE_LOCK;
 
+key g_kGroup = NULL_KEY;
+
 string g_sBuiltQuoteText = "";
 string g_sGlobalToken = "global_";
 
@@ -168,6 +170,7 @@ QuotePermissionMenu(key kID, integer iAuth) {
 }
 
 integer QuoteCheckPerm(key kAv, integer iAuth) {
+    iAuth = TweakAuth(kAv, iAuth);
     // use manually set perm level by default
     integer iPerm = g_iQuoteAllowRank;
     // if AutoLock is enabled and a quote is set by someone of a certain rank,
@@ -184,10 +187,23 @@ integer QuoteCheckPerm(key kAv, integer iAuth) {
     return (iAuth >= CMD_OWNER && iAuth <= iPerm);
 }
 
-SetNewQuote(string sMessage, key kAv, integer iAuth) {
+integer TweakAuth(key kAv, integer iAuth) {
     // we override vanilla here
     if (kAv == g_kWearer)
-        iAuth = CMD_WEARER;
+        return CMD_WEARER;
+    // if iAuth is not CMD_GROUP, we're done here
+    if (iAuth != CMD_GROUP)
+        return iAuth;
+    // ok, now this could mean group OR public
+    // so if group is enabled we need to check for ourselves if kAv is in the correct group
+    if (g_kGroup)
+        if (((string)llGetObjectDetails(kAv, [OBJECT_GROUP]) == (string)g_kGroup) || llSameGroup(kAv))
+            return CMD_GROUP;
+    return CMD_EVERYONE;
+}
+
+SetNewQuote(string sMessage, key kAv, integer iAuth) {
+    iAuth = TweakAuth(kAv, iAuth);
     g_sQuoteText = sMessage;
     if (sMessage == "") {
         g_sQuoteCredit = "";
@@ -260,11 +276,7 @@ default {
                                     string sPrompt = "\n[Quote]\n\nEnter a new quote for %WEARERNAME%'s %DEVICETYPE%. Leave empty to go back without changing it. Your name";
                                     if (g_iQuoteExtra & QUOTE_DATE)
                                         sPrompt += ", today's date";
-                                    integer iPerm = iAuth;
-                                    // we override vanilla here
-                                    if (kAv == g_kWearer)
-                                        iPerm = CMD_WEARER;
-                                    sPrompt += " and your current rank ("+RankText(iPerm)+") will be remembered alongside it!";
+                                    sPrompt += " and your current rank ("+RankText(TweakAuth(kAv, iAuth))+") will be remembered alongside it!";
                                     if (iAuth == CMD_OWNER && !(g_iQuoteExtra & QUOTE_DATE))
                                         sPrompt += " If you want to keep today's date alongside your quote, enable "+Checkbox("Date", TRUE)+" first.";
                                     Dialog(kAv, sPrompt, [], [], 0, iAuth, "QuoteSet");
@@ -369,6 +381,8 @@ default {
                     g_iQuoteExtra = llList2Integer(lParts, 2);
                 }
                 BuildQuoteText();
+            } else if (sToken == "auth_group") {
+                g_kGroup = (key) sValue;
             }
         } else if (iNum == LINK_UPDATE) {
             if (sStr == "LINK_DIALOG") LINK_DIALOG = iSender;
