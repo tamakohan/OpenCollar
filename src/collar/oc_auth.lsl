@@ -460,6 +460,7 @@ UserCommand(integer iNum, string sStr, key kID, integer iRemenu) { // here iNum:
     
                 if (g_kGroup != "") {
                     llMessageLinked(LINK_SAVE, LM_SETTING_SAVE, g_sSettingToken + "group=" + (string)g_kGroup, "");
+                    llMessageLinked(LINK_ROOT, LM_SETTING_RESPONSE, g_sSettingToken + "group=" + (string)g_kGroup, ""); // workaround for CMD_GROUP covering both group and public
                     g_iGroupEnabled = TRUE;
                     llMessageLinked(LINK_RLV, RLV_CMD, "setgroup=n", "auth");
                     llMessageLinked(LINK_DIALOG,NOTIFY,"1"+"Group set to secondlife:///app/group/" + (string)g_kGroup + "/about\n\nNOTE: If RLV is enabled, the group slot has been locked and group mode has to be disabled before %WEARERNAME% can switch to another group again.\n",kID);
@@ -467,6 +468,7 @@ UserCommand(integer iNum, string sStr, key kID, integer iRemenu) { // here iNum:
             } else if (sAction == "off") {
                 g_kGroup = "";
                 llMessageLinked(LINK_SAVE, LM_SETTING_DELETE, g_sSettingToken + "group", "");
+                llMessageLinked(LINK_ROOT, LM_SETTING_RESPONSE, g_sSettingToken + "group=", ""); // workaround for CMD_GROUP covering both group and public
                 g_iGroupEnabled = FALSE;
                 llMessageLinked(LINK_DIALOG,NOTIFY,"1"+"Group unset.",kID);
                 llMessageLinked(LINK_RLV, RLV_CMD, "setgroup=y", "auth");
