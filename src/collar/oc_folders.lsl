@@ -99,9 +99,11 @@ integer g_iLastFolderState;
 
 key g_kWearer;
 string g_sSettingToken = "rlvfolders_";
-//string g_sGlobalToken = "global_";
+string g_sGlobalToken = "global_";
 
 list g_lHistory;
+
+integer g_iDebug = 0;
 
 /*
 integer g_iProfiled;
@@ -116,6 +118,17 @@ Debug(string sStr) {
     llOwnerSay(llGetScriptName() + "(min free:"+(string)(llGetMemoryLimit()-llGetSPMaxMemory())+")["+(string)llGetFreeMemory()+"] :\n" + sStr);
 }
 */
+
+RlvSay(string sCmd) {
+    if (g_iDebug)
+        llOwnerSay(llGetScriptName()+" R> " + sCmd);
+    llOwnerSay(sCmd);
+}
+
+RlvEcho(string sMsg) {
+    if (g_iDebug)
+        llOwnerSay(llGetScriptName()+" R< " + sMsg);
+}
 
 Dialog(key kRCPT, string sPrompt, list lChoices, list lUtilityButtons, integer iPage, integer iAuth, string sMenuID) {
     key kMenuID = llGenerateKey();
@@ -424,8 +437,8 @@ searchSingle(string sItem) {
     }
     llSetTimerEvent(g_iTimeOut);
     if ((g_iRLVaOn) && (g_sNextsearch == "")) { //use multiple folder matching from RLVa if we have it
-        llOwnerSay("@findfolders:"+sItem+"="+(string)g_iFolderRLV); //Unstored one-shot commands are better performed locally to save the linked message.
-    } else llOwnerSay("@findfolder:"+sItem+"="+(string)g_iFolderRLV); //Unstored one-shot commands are better performed locally to save the linked message.
+        RlvSay("@findfolders:"+sItem+"="+(string)g_iFolderRLV); //Unstored one-shot commands are better performed locally to save the linked message.
+    } else RlvSay("@findfolder:"+sItem+"="+(string)g_iFolderRLV); //Unstored one-shot commands are better performed locally to save the linked message.
 
 }
 
@@ -656,6 +669,8 @@ integer iMenuIndex = llListFindList(g_lMenuIDs, [kID]);
                     g_iUnsharedLocks = (integer) sValue;
                     doLockUnshared();
                 }
+            } else if (sToken == g_sGlobalToken+"debug") {
+                g_iDebug = (integer) sValue;
             }
         } else if (iNum == LINK_UPDATE) {
             if (sStr == "LINK_DIALOG") LINK_DIALOG = iSender;
@@ -668,6 +683,7 @@ integer iMenuIndex = llListFindList(g_lMenuIDs, [kID]);
         llListenRemove(g_iListener);
         llSetTimerEvent(0.0);
         if (iChan == g_iFolderRLV) {   //we got a list of folders
+            RlvEcho(sMsg);
             if (g_sFolderType=="browse") {
                 if (sMsg == "") { // try again if the folder name was wrong (may happen if the inventory changed)
                     g_sCurrentFolder = "";
@@ -695,7 +711,7 @@ integer iMenuIndex = llListFindList(g_lMenuIDs, [kID]);
                         g_sFirstsearch="";
                         g_iListener = llListen(g_iFolderRLV, "", llGetOwner(), "");
                         llSetTimerEvent(g_iTimeOut);
-                        llOwnerSay("@getinv:"+g_sBuildpath+"="+(string)g_iFolderRLV);
+                        RlvSay("@getinv:"+g_sBuildpath+"="+(string)g_iFolderRLV);
                     } else {
                         if(g_sNextsearch!="") {
                             list tlist=llParseString2List(sMsg,[","],[]);
