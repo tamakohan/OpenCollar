@@ -14,7 +14,7 @@ integer ALLOW_DEBUG = FALSE;
 
 string g_sDevStage="";
 string g_sCollarVersion="7.1";
-string g_sTamaCollarVersion="1"; // we will reset this to "1" every time we update to a new upstream OpenCollar version
+string g_sTamaCollarVersion="2"; // we will reset this to "1" every time we update to a new upstream OpenCollar version
 integer g_iLatestVersion=TRUE;
 float g_fBuildVersion = 200000.0;
 
@@ -89,6 +89,7 @@ list OC_SCRIPTS = [
     "oc_meshlabel",
     "oc_meshthemes",
     "oc_particle",
+    "oc_quote",
     "oc_relay",
     "oc_resizer",
     "oc_rlvsuite",
@@ -96,7 +97,9 @@ list OC_SCRIPTS = [
     "oc_settings",
     "oc_sys",
     "oc_themes",
-    "oc_titler"
+    "oc_titler",
+    "oc_toys",
+    "oc_toys_b"
 ];
 
 key g_kWebLookup;
