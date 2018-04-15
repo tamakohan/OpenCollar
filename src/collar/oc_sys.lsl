@@ -10,6 +10,8 @@
 //on menu request, give dialog, with alphabetized list of submenus
 //on listen, send submenu link message
 
+integer ALLOW_DEBUG = FALSE;
+
 string g_sDevStage="";
 string g_sCollarVersion="7.1";
 string g_sTamaCollarVersion="1"; // we will reset this to "1" every time we update to a new upstream OpenCollar version
@@ -105,7 +107,8 @@ list g_lResizeButtons;
 
 integer g_iLocked = FALSE;
 integer g_bDetached = FALSE;
-integer g_iHide ; // global hide
+integer g_iHide; // global hide
+integer g_iDebug;
 integer g_iNews=TRUE;
 
 string g_sLockPrimName="Lock"; // Description for lock elements to recognize them //EB //SA: to be removed eventually (kept for compatibility)
@@ -148,6 +151,8 @@ string g_sSafeWord="RED";
 string DUMPSETTINGS = "Print";
 string STEALTH_OFF = "☐ Stealth"; // show the whole device
 string STEALTH_ON = "☑ Stealth"; // hide the whole device
+string DEBUG_OFF = "☐ Debug";
+string DEBUG_ON = "☑ Debug";
 string LOADCARD = "Load";
 string REFRESH_MENU = "Fix";
 
@@ -194,6 +199,10 @@ SettingsMenu(key kID, integer iAuth) {
     lButtons += g_lResizeButtons;
     if (g_iHide) lButtons += [STEALTH_ON];
     else lButtons += [STEALTH_OFF];
+    if (ALLOW_DEBUG) {
+        if (g_iDebug) lButtons += [DEBUG_ON];
+        else lButtons += [DEBUG_OFF];
+    }
     if (g_iLooks) lButtons += "Looks";
     else lButtons += "Themes";
     Dialog(kID, sPrompt, lButtons, [UPMENU], 0, iAuth, "Settings");
@@ -337,6 +346,20 @@ UserCommand(integer iNum, string sStr, key kID, integer fromMenu) {
             }
         } else llMessageLinked(LINK_DIALOG,NOTIFY,"0"+"%NOACCESS%",kID);
         if (fromMenu) HelpMenu(kID, iNum);
+    } else if (sCmd == "debug" && kID == g_kWearer && ALLOW_DEBUG) {
+        if (sStr == "debug off") {
+            g_iDebug = FALSE;
+            llMessageLinked(LINK_DIALOG, NOTIFY, "0"+"Debugging to llOwnerSay() disabled.", kID);
+            llMessageLinked(LINK_SAVE, LM_SETTING_SAVE, g_sGlobalToken+"debug=0", "");
+            llMessageLinked(LINK_SET, LM_SETTING_RESPONSE, g_sGlobalToken+"debug=0", "");
+        } else if (sStr == "debug on") {
+            g_iDebug = TRUE;
+            llOwnerSay((string)llGetFreeMemory()+" bytes free");
+            llMessageLinked(LINK_DIALOG, NOTIFY, "0"+"Debugging to llOwnerSay() enabled.", kID);
+            llMessageLinked(LINK_SAVE, LM_SETTING_SAVE, g_sGlobalToken+"debug=1", "");
+            llMessageLinked(LINK_SET, LM_SETTING_RESPONSE, g_sGlobalToken+"debug=1", "");
+        }
+        if (fromMenu) SettingsMenu(kID, iNum);
     } else if (sCmd == "update") {
         if (kID == g_kWearer) {
             g_iWillingUpdaters = 0;
@@ -619,6 +642,12 @@ default {
                     } else if (sMessage == STEALTH_ON) {
                         llMessageLinked(LINK_ROOT, iAuth,"show",kAv);
                         g_iHide = FALSE;
+                    } else if (sMessage == DEBUG_OFF) {
+                        UserCommand(iAuth, "debug on", kAv, TRUE);
+                        return;
+                    } else if (sMessage == DEBUG_ON) {
+                        UserCommand(iAuth, "debug off", kAv, TRUE);
+                        return;
                     } else if (sMessage == "Themes") {
                         llMessageLinked(LINK_ROOT, iAuth, "menu Themes", kAv);
                         return;
@@ -657,12 +686,22 @@ default {
                 else if ((key)sValue!=NULL_KEY || llGetInventoryType(sValue)==INVENTORY_SOUND) g_sUnlockSound=sValue;
             } else if (sToken == g_sGlobalToken+"safeword") g_sSafeWord = sValue;
             else if (sToken == "intern_dist") g_sOtherDist = sValue;
-            else if (sToken == g_sGlobalToken+"prefix") {
+            else if (sToken == g_sGlobalToken+"debug") {
+                g_iDebug = (integer) sValue;
+            } else if (sToken == g_sGlobalToken+"prefix") {
                 g_sPrefix = sValue;
             } else if (sToken == g_sGlobalToken+"channel") {
                 g_iChannel = (integer) sValue;
             } else if (sStr == "settings=sent") {
                 if (g_iNews) news_request = llHTTPRequest(g_sWeb+"news.txt", [HTTP_METHOD, "GET", HTTP_VERBOSE_THROTTLE, FALSE], "");
+                if (g_iDebug && !ALLOW_DEBUG) {
+                    g_iDebug = FALSE;
+                    llMessageLinked(LINK_SAVE, LM_SETTING_SAVE, g_sGlobalToken+"debug=0", "");
+                    llMessageLinked(LINK_SET, LM_SETTING_RESPONSE, g_sGlobalToken+"debug=0", "");
+                }
+                
+                if (g_iDebug)
+                    llOwnerSay((string)llGetFreeMemory()+" bytes free");
             }
         } else if (iNum == DIALOG_TIMEOUT) {
             integer iMenuIndex = llListFindList(g_lMenuIDs, [kID]);
