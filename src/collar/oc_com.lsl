@@ -19,6 +19,9 @@ integer g_iLeashPrim;
 integer g_iHUDListener;
 integer g_iHUDChan;
 
+// private extension (again, where do we find a list of these allocations?)
+integer CMD_TOY = 420;
+
 //MESSAGE MAP
 integer CMD_ZERO = 0;
 integer CMD_OWNER = 500;
@@ -371,6 +374,16 @@ default {
     }
 
     listen(integer iChan, string sSpeaker, key kID, string sMsg) {
+        if (iChan == g_iInterfaceChannel && !llSubStringIndex(sMsg, "oc_toy|")) {
+            // messages sent on detach will result in llGetOwnerKey(kID) == NULL_KEY
+            if (!(sMsg == "oc_toy|detach" || llGetOwnerKey(kID) == g_kWearer))
+                return;
+            if (!llSubStringIndex(sMsg, "oc_toy|user|"))
+                llMessageLinked(LINK_AUTH, CMD_ZERO, "toy "+llGetSubString(sMsg, 49, -1)+" "+(string)kID, (key)llGetSubString(sMsg, 12, 47));
+            else
+                llMessageLinked(LINK_ROOT, CMD_TOY, (string)kID+"|"+llGetSubString(sMsg, 7, -1), llGetOwnerKey(kID));
+            return;
+        }
         if (iChan == g_iHUDChan) {
             //check for a ping, if we find one we request auth and answer in LMs with a pong
             if (sMsg==(string)g_kWearer + ":ping")
