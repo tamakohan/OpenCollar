@@ -21,7 +21,9 @@ list    g_lMenuIDs;
 integer g_iMenuStride = 3;
 
 //string g_sSettingToken                = "restrictions_";
-//string g_sGlobalToken                 = "global_";
+string g_sGlobalToken                 = "global_";
+
+integer g_iDebug = 0;
 
 //restriction vars
 integer g_iSendRestricted;
@@ -113,6 +115,17 @@ Debug(string sStr) {
 }
 */
 
+RlvSay(string sCmd) {
+    if (g_iDebug)
+        llOwnerSay(llGetScriptName()+" R> " + sCmd);
+    llOwnerSay(sCmd);
+}
+
+RlvEcho(string sMsg) {
+    if (g_iDebug)
+        llOwnerSay(llGetScriptName()+" R< " + sMsg);
+}
+
 Dialog(key kRCPT, string sPrompt, list lButtons, list lUtilityButtons, integer iPage, integer iAuth, string sMenuID) {
     key kMenuID = llGenerateKey();
     if (sMenuID == "sensor" || sMenuID == "find")
@@ -199,7 +212,7 @@ OutfitsMenu(key kID, integer iAuth) {
     g_sCurrentPath = g_sPathPrefix + "/";
     llSetTimerEvent(g_iTimeOut);
     g_iListener = llListen(g_iFolderRLV, "", g_kWearer, "");
-    llOwnerSay("@getinv:"+g_sCurrentPath+"="+(string)g_iFolderRLV);
+    RlvSay("@getinv:"+g_sCurrentPath+"="+(string)g_iFolderRLV);
 }
 
 FolderMenu(key keyID, integer iAuth,string sFolders) {
@@ -219,17 +232,16 @@ FolderMenu(key keyID, integer iAuth,string sFolders) {
 }
 
 WearFolder (string sStr) { //function grabs g_sCurrentPath, and splits out the final directory path, attaching .core directories and passes RLV commands
-    string sAttach ="@attachallover:"+sStr+"=force,attachallover:"+g_sPathPrefix+"/.core/=force";
+    string sAttach = "@attachallover:"+sStr+"=force,attachallover:"+g_sPathPrefix+"/.core/=force";
     string sPrePath;
     list lTempSplit = llParseString2List(sStr,["/"],[]);
     lTempSplit = llList2List(lTempSplit,0,llGetListLength(lTempSplit) -2);
     sPrePath = llDumpList2String(lTempSplit,"/");
     if (g_sPathPrefix + "/" != sPrePath)
         sAttach += ",attachallover:"+sPrePath+"/.core/=force";
-   // Debug("rlv:"+sOutput);
-    llOwnerSay("@remoutfit=force,detach=force");
+    RlvSay("@remoutfit=force,detach=force");
     llSleep(1.5); // delay for SSA
-    llOwnerSay(sAttach);
+    RlvSay(sAttach);
 }
 
 DetachMenu(key kID, integer iAuth)
@@ -349,10 +361,10 @@ UserCommand(integer iNum, string sStr, key kID, integer bFromMenu) {
                 g_iListener = llListen(g_iFolderRLVSearch, "", g_kWearer, "");
                 g_kMenuClicker = kID;
                 if (g_iRLVaOn) {
-                    llOwnerSay("@findfolders:"+sLowerStr+"="+(string)g_iFolderRLVSearch);
+                    RlvSay("@findfolders:"+sLowerStr+"="+(string)g_iFolderRLVSearch);
                 }
                 else {
-                    llOwnerSay("@findfolder:"+sLowerStr+"="+(string)g_iFolderRLVSearch);
+                    RlvSay("@findfolder:"+sLowerStr+"="+(string)g_iFolderRLVSearch);
                 }
             }
         }
@@ -643,6 +655,8 @@ default {
                 else if (sToken=="restrictions_rummage")  g_iRummageRestricted=(integer)sValue;
                 else if (sToken=="restrictions_blurred")  g_iBlurredRestricted=(integer)sValue;
                 else if (sToken=="restrictions_dazed")    g_iDazedRestricted=(integer)sValue;
+            } else if (sToken == g_sGlobalToken+"debug") {
+                g_iDebug = (integer) sValue;
             }
         }
         else if (iNum >= CMD_OWNER && iNum <= CMD_WEARER) UserCommand(iNum, sStr, kID,FALSE);
@@ -699,7 +713,7 @@ default {
                         llSetTimerEvent(g_iTimeOut);
                         g_iAuth = iAuth;
                         g_iListener = llListen(g_iFolderRLV, "", g_kWearer, "");
-                        llOwnerSay("@getinv:"+g_sCurrentPath+"="+(string)g_iFolderRLV);
+                        RlvSay("@getinv:"+g_sCurrentPath+"="+(string)g_iFolderRLV);
                     } else if (sMessage == "WEAR") WearFolder(g_sCurrentPath);
                     else if (sMessage != "") {
                         g_sCurrentPath += sMessage + "/";
@@ -707,7 +721,7 @@ default {
                         llSetTimerEvent(g_iTimeOut);
                         g_iAuth = iAuth;
                         g_iListener = llListen(g_iFolderRLV, "", llGetOwner(), "");
-                        llOwnerSay("@getinv:"+g_sCurrentPath+"="+(string)g_iFolderRLV);
+                        RlvSay("@getinv:"+g_sCurrentPath+"="+(string)g_iFolderRLV);
                     }
                 } else if (sMenu == "detach") {
                     if (sMessage == UPMENU) {
@@ -718,7 +732,7 @@ default {
                             string uuid = llList2String(g_lAttachments, idx + 1);
                             //send the RLV command to remove it.
                             if (g_iRLVOn) {
-                                llOwnerSay("@remattach:" + uuid + "=force");
+                                RlvSay("@remattach:" + uuid + "=force");
                             }
                             //sleep for a sec to let things detach
                             llSleep(0.5);
@@ -743,17 +757,18 @@ default {
         llSetTimerEvent(0.0);
         //Debug((string)iChan+"|"+sName+"|"+(string)kID+"|"+sMsg);
         if (iChan == g_iFolderRLV) { //We got some folders to process
+            RlvEcho(sMsg);
             FolderMenu(g_kMenuClicker,g_iAuth,sMsg); //we use g_kMenuClicker to respond to the person who asked for the menu
             g_iAuth = CMD_EVERYONE;
         }
         else if (iChan == g_iFolderRLVSearch) {
+            RlvEcho(sMsg);
             if (sMsg == "") {
                 llMessageLinked(LINK_DIALOG,NOTIFY,"0"+"That outfit couldn't be found in #RLV/"+g_sPathPrefix,kID);
             } else { // we got a match
                 if (llSubStringIndex(sMsg,",") < 0) {
                     g_sCurrentPath = sMsg;
                     WearFolder(g_sCurrentPath);
-                    //llOwnerSay("@attachallover:"+g_sPathPrefix+"/.core/=force");
                     llMessageLinked(LINK_DIALOG,NOTIFY,"0"+"Loading outfit #RLV/"+sMsg,kID);
                 } else {
                     string sPrompt = "\nPick one!";
