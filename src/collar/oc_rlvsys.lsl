@@ -52,6 +52,9 @@ integer LM_SETTING_RESPONSE = 2002;
 //integer LM_SETTING_DELETE = 2003;
 //integer LM_SETTING_EMPTY = 2004;
 
+// FIXME unofficial constant here, what's the process for choosing these?
+integer CMD_TOY = 420;
+
 integer MENUNAME_REQUEST = 3000;
 integer MENUNAME_RESPONSE = 3001;
 integer MENUNAME_REMOVE = 3003;
@@ -87,11 +90,14 @@ list g_lOwners;
 list g_lRestrictions;  //2 strided list of sourceId, § separated list of restrictions strings
 //list g_lExceptions;
 list g_lBaked=[]; //list of restrictions currently in force
+list g_lOverrides=[];
 key g_kSitter=NULL_KEY;
 key g_kSitTarget=NULL_KEY;
 
 integer CMD_ADDSRC = 11;
 integer CMD_REMSRC = 12;
+
+integer g_iDebug = 0;
 
 /*
 integer g_iProfiled;
@@ -106,6 +112,17 @@ Debug(string sStr) {
     llOwnerSay(llGetScriptName() + "(min free:"+(string)(llGetMemoryLimit()-llGetSPMaxMemory())+")["+(string)llGetFreeMemory()+"] :\n" + sStr);
 }
 */
+
+RlvSay(string sCmd) {
+    if (g_iDebug)
+        llOwnerSay(llGetScriptName()+" R> " + sCmd);
+    llOwnerSay(sCmd);
+}
+
+RlvEcho(string sMsg) {
+    if (g_iDebug)
+        llOwnerSay(llGetScriptName()+" R< " + sMsg);
+}
 
 DoMenu(key kID, integer iAuth){
     key kMenuID = llGenerateKey();
@@ -173,7 +190,7 @@ setRlvState(){
         //Debug("RLV went inactive");
         g_iRlvActive=FALSE;
         while (llGetListLength(g_lBaked)){
-            llOwnerSay("@"+llList2String(g_lBaked,-1)+"=y"); //remove restriction
+            RlvSay("@"+llList2String(g_lBaked,-1)+"=y"); //remove restriction
             g_lBaked=llDeleteSubList(g_lBaked,-1,-1);
         }
         llMessageLinked(LINK_ALL_OTHERS, RLV_OFF, "", NULL_KEY);
@@ -182,7 +199,7 @@ setRlvState(){
         g_iListener = llListen(293847, "", g_kWearer, "");
         llSetTimerEvent(g_fVersionTimeOut);
         g_iCheckCount=0;
-        llOwnerSay("@versionnew=293847");
+        RlvSay("@versionnew=293847");
     } else   //else both are FALSE, its the only combination left, No need to do viewercheck if g_iRLVOn is FALSE
         llSetTimerEvent(0.0);
 }
@@ -217,7 +234,8 @@ AddRestriction(key kID, string sBehav) {
 ApplyAdd (string sBehav) {
     if (! ~llListFindList(g_lBaked, [sBehav])) {  //if this restriction is not already baked
         g_lBaked+=[sBehav];
-        llOwnerSay("@"+sBehav+"=n");
+        if (OverrideCheck(sBehav))
+            RlvSay("@"+sBehav+"=n");
         //Debug("'"+sBehav+"' added to the baked list");
     //} else {
         //Debug(sBehav+" is already baked");
@@ -259,7 +277,7 @@ ApplyRem(string sBehav) {
         }
         //also check the exceptions list, in case its an exception
         g_lBaked=llDeleteSubList(g_lBaked,iRestr,iRestr); //delete it from the baked list
-        llOwnerSay("@"+sBehav+"=y"); //remove restriction
+        RlvSay("@"+sBehav+"=y"); //remove restriction
     }
 }
 
@@ -329,6 +347,87 @@ UserCommand(integer iNum, string sStr, key kID) {
     }
 }
 
+ToyCommand(string sStr) {
+    //llOwnerSay("toy: " + sStr);
+    
+    integer RCF_ATTACH = 1;
+    integer RCF_PARTTWO = 2;
+    integer RCF_OVERRIDE = 4;
+    integer RCF_TOYLOCKED = 8;
+
+    if (sStr == "cancel") {
+        RemOverride("addattach");
+        RemOverride("remattach");
+    } else {
+        list lParts = llCSV2List(sStr);
+        integer iRlvCmdFlags = llList2Integer(lParts, 0);
+        key kObj = llList2Key(lParts, 1);
+        string sRlvPath = llToLower(llList2String(lParts, 2));
+        integer iCoreChan = -llAbs((integer)("0x" + llGetSubString(g_kWearer,30,-1)));
+        //llOwnerSay("CoreChan: "+(string)iCoreChan);
+        
+        if (iRlvCmdFlags & RCF_ATTACH) {
+            if (iRlvCmdFlags & RCF_PARTTWO) {
+                if (iRlvCmdFlags & RCF_OVERRIDE)
+                    RemOverride("addattach");
+                if (iRlvCmdFlags & RCF_TOYLOCKED)
+                    llRegionSayTo(kObj, iCoreChan^1, "lock");
+            } else {
+                if (iRlvCmdFlags & RCF_OVERRIDE)
+                    AddOverride("addattach");
+                if (iRlvCmdFlags & RCF_TOYLOCKED)
+                    RemRestriction(NULL_KEY, "attachthis:"+sRlvPath);
+                RlvSay("@attachover:"+sRlvPath+"=force");
+            }
+        } else {
+            if (iRlvCmdFlags & RCF_PARTTWO) {
+                if (iRlvCmdFlags & RCF_OVERRIDE)
+                    RemOverride("remattach");
+                if (iRlvCmdFlags & RCF_TOYLOCKED)
+                    AddRestriction(NULL_KEY, "attachthis:"+sRlvPath);
+            } else {
+                if (iRlvCmdFlags & RCF_OVERRIDE)
+                    AddOverride("remattach");
+                llRegionSayTo(kObj, iCoreChan^1, "detach");
+            }
+        }
+    }
+}
+
+AddOverride(string sOverride) {
+    if (~llListFindList(g_lOverrides, [sOverride]))
+        return;
+    integer numBaked = llGetListLength(g_lBaked);
+    while (numBaked--) {
+        string sBehav = llList2String(g_lBaked, numBaked);
+        if (sBehav == sOverride || !llSubStringIndex(sBehav, sOverride+":"))
+            RlvSay("@"+sBehav+"=y");
+    }
+    g_lOverrides += sOverride;
+}
+
+RemOverride(string sOverride) {
+    integer iIndex = llListFindList(g_lOverrides, [sOverride]);
+    if (!~iIndex)
+        return;
+    integer numBaked = llGetListLength(g_lBaked);
+    while (numBaked--) {
+        string sBehav = llList2String(g_lBaked, numBaked);
+        if (sBehav == sOverride || !llSubStringIndex(sBehav, sOverride+":"))
+            RlvSay("@"+sBehav+"=n");
+    }
+    g_lOverrides = llDeleteSubList(g_lOverrides, iIndex, iIndex);
+}
+
+integer OverrideCheck(string sBehav) {
+    integer iPos = llSubStringIndex(sBehav, ":");
+    if (!iPos)
+        sBehav = "";
+    else if (~iPos)
+        sBehav = llGetSubString(sBehav, 0, iPos-1);
+    return !~llListFindList(g_lOverrides, [sBehav]);
+}
+
 default {
     on_rez(integer param) {
 /*
@@ -350,12 +449,13 @@ default {
         setRlvState();
         //llMessageLinked(LINK_SAVE, LM_SETTING_SAVE, g_sSettingToken + "on="+(string)g_iRLVOn, "");
         //llMessageLinked(LINK_ALL_OTHERS, LM_SETTING_SAVE, g_sSettingToken + "on="+(string)g_iRLVOn, "");
-        llOwnerSay("@clear");
+        RlvSay("@clear");
         g_kWearer = llGetOwner();
         //Debug("Starting");
     }
 
     listen(integer iChan, string sName, key kID, string sMsg) {
+        RlvEcho(sMsg);
     //RestrainedLove viewer v2.8.0 (RLVa 1.4.10) <-- @versionnew response structure v1.23 (implemented April 2010).
     //lines commented out are from @versionnum response string (implemented late 2009)
         llListenRemove(g_iListener);
@@ -394,6 +494,7 @@ default {
             llMessageLinked(LINK_ALL_OTHERS, MENUNAME_REQUEST, g_sSubMenu, "");
         }
         else if (iNum <= CMD_WEARER && iNum >= CMD_OWNER) UserCommand(iNum, sStr, kID);
+        else if (iNum == CMD_TOY) ToyCommand(sStr);
         else if (iNum == DIALOG_RESPONSE) {
             //Debug(sStr);
             integer iMenuIndex = llListFindList(g_lMenuIDs, [kID]);
@@ -439,12 +540,15 @@ default {
             string sValue = llList2String(lParams, 1);
             lParams=[];
             if (sToken == "auth_owner") g_lOwners = llParseString2List(sValue, [","], []);
-            else if (sToken==g_sGlobalToken+"lock") g_iCollarLocked=(integer)sValue;
             else if (sToken==g_sSettingToken+"handshakes") g_iMaxViewerChecks=(integer)sValue;
             else if (sToken==g_sSettingToken+"on") {
                 g_iRLVOn=(integer)sValue;
                 g_iRLVOff = !g_iRLVOn;
                 setRlvState();
+            } else if (sToken == g_sGlobalToken+"lock") {
+                g_iCollarLocked = (integer) sValue;
+            } else if (sToken == g_sGlobalToken+"debug") {
+                g_iDebug = (integer) sValue;
             }
         } else if (iNum == CMD_SAFEWORD || iNum == CMD_RELAY_SAFEWORD) SafeWord("");
         else if (iNum==RLV_QUERY) {
@@ -537,7 +641,7 @@ default {
                                 return;
                             }
                         }
-                        llOwnerSay("@"+sCommand);
+                        RlvSay("@"+sCommand);
                         if (g_kSitter==NULL_KEY&&llGetSubString(sCommand,0,3)=="sit:") {
                             g_kSitter=kID;
                             //Debug("Sitter:"+(string)(g_kSitter));
@@ -552,7 +656,7 @@ default {
             } else if (iNum == CMD_RLV_RELAY) {
                 if (llGetSubString(sStr,-43,-1)== ","+(string)g_kWearer+",!pong") { //if it is a pong aimed at wearer
                     //Debug("Received pong:"+sStr+" from "+(string)kID);
-                    if (kID==g_kSitter) llOwnerSay("@"+"sit:"+(string)g_kSitTarget+"=force");  //if we stored a sitter, sit on it
+                    if (kID==g_kSitter) RlvSay("@"+"sit:"+(string)g_kSitTarget+"=force");  //if we stored a sitter, sit on it
                     rebakeSourceRestrictions(kID);
                 }
             }
@@ -587,7 +691,7 @@ default {
             }
         } else {
             if (g_iCheckCount++ < g_iMaxViewerChecks) {
-                llOwnerSay("@versionnew=293847");
+                RlvSay("@versionnew=293847");
                // if (g_iCheckCount==2) llMessageLinked(LINK_SET, NOTIFY, "0"+"\n\nIf your viewer doesn't support RLV, you can stop the \"@versionnew\" message by switching RLV off in your %DEVICETYPE%'s RLV menu or by typing: %PREFIX% rlv off\n", g_kWearer);
             } else {    //we've waited long enough, and are out of retries
                 llMessageLinked(LINK_DIALOG, NOTIFY, "0"+"\n\nRLV appears to be not currently activated in your viewer. There will be no further attempted handshakes \"@versionnew=293847\" until the next time you log in. To permanently turn RLV off, type \"/%CHANNEL% %PREFIX% rlv off\" but keep in mind that you will have to manually enable it if you wish to use it in the future.\n", g_kWearer);
@@ -608,12 +712,13 @@ default {
         //re make rlv restrictions after teleport or region change, because SL seems to be losing them
         if (iChange & CHANGED_TELEPORT || iChange & CHANGED_REGION) {   //if we teleported, or changed regions
             //re make rlv restrictions after teleport or region change, because SL seems to be losing them
-            integer numBaked=llGetListLength(g_lBaked);
-            while (numBaked--){
-                llOwnerSay("@"+llList2String(g_lBaked,numBaked)+"=n");
+            integer numBaked = llGetListLength(g_lBaked);
+            while (numBaked--) {
+                string sBehav = llList2String(g_lBaked, numBaked);
+                if (OverrideCheck(sBehav))
+                    RlvSay("@"+sBehav+"=n");
                 //Debug("resending @"+llList2String(g_lBaked,numBaked));
             }
-
         }
     }
 }
