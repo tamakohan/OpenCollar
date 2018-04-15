@@ -6,11 +6,14 @@ SCRIPT|oc_label
 SCRIPT|oc_leash
 SCRIPT|oc_meshlabel
 SCRIPT|oc_particle
+SCRIPT|oc_quote
 SCRIPT|oc_relay
 SCRIPT|oc_resizer
 SCRIPT|oc_rlvsuite
 SCRIPT|oc_themes
 SCRIPT|oc_meshthemes
 SCRIPT|oc_titler
+SCRIPT|oc_toys
+SCRIPT|oc_toys_b
 ITEM|.license
 ITEM|OpenCollar_Help
