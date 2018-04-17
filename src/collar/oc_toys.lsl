@@ -178,6 +178,22 @@ string ToyMenu(key kActor, integer iAuth, integer iIndex, string sButton) {
     key kHandler = llList2Key(g_lToys, iIndex+4);
     integer iHandlerRank = llList2Integer(g_lToys, iIndex+5);
     
+    integer iPermanent = (iFlags & FLAG_PERMANENT);
+    integer iAmnesty = (iFlags & FLAG_AMNESTY);
+    
+    key kToucher = kHandler;
+    if (iFlags & FLAG_LEFT_MASK)
+        kToucher = NULL_KEY;
+    else if (iAmnesty)
+        kToucher = g_kWearer;
+
+    key kController = kToucher;
+    if (kController == g_kWearer && iPermanent && !iAmnesty)
+        kController = NULL_KEY;
+    
+    integer iCanAttach = (kActor == kController);
+    integer iCanTouch = (kActor == kToucher);
+    
     integer iCanTakeControl;
     if (kActor == kHandler) {
         iCanTakeControl = (iFlags & (FLAG_LEFT_MASK | FLAG_AMNESTY));
@@ -208,7 +224,7 @@ string ToyMenu(key kActor, integer iAuth, integer iIndex, string sButton) {
     }
     
     if (sButton == "-") {
-        if (kActor != kHandler && !iCanTakeControl)
+        if (!(iCanTouch || iCanTakeControl))
             return "🚫 "+sToy;
         if (iFlags & FLAG_LEFT_MASK)
             return "✋ "+sToy;
@@ -227,7 +243,7 @@ string ToyMenu(key kActor, integer iAuth, integer iIndex, string sButton) {
     
     list lButtons = [];
     
-    if (kActor == kHandler && !(iFlags & (FLAG_LEFT_MASK | FLAG_AMNESTY))) {
+    if (iCanAttach) {
         if (iFlags & FLAG_ATTACHED) {
             if (iFlags & FLAG_WANT_ATTACHED) {
                 if (sButton == "Detach") {
@@ -235,18 +251,6 @@ string ToyMenu(key kActor, integer iAuth, integer iIndex, string sButton) {
                     return "1";
                 }
                 lButtons += "Detach";
-
-                string sTouchText = "";
-                if (llGetListLength(lParams) > 1)
-                    sTouchText = llList2String(lParams, 1);
-                if (sTouchText) {
-                    if (sButton == sTouchText || sButton == "Touch") {
-                        key kObj = llList2Key(g_lToys, iIndex+2);
-                        CoreComm(kObj, "touch|"+(string)kActor+"|"+(string)iAuth);
-                        return "1";
-                    }
-                    lButtons += sTouchText;
-                }
             } else {
                 lButtons += "(Detaching)";
             }
@@ -261,22 +265,36 @@ string ToyMenu(key kActor, integer iAuth, integer iIndex, string sButton) {
                 lButtons += "Attach";
             }
         }
-        
-        if (kActor != g_kWearer) {
-            if (sButton == "LeaveLocked") {
-                DoLeaveLocked(kActor, iAuth, iIndex, "");
+    }
+    
+    if (iCanTouch && (iFlags & FLAG_ATTACHED) && (iFlags & FLAG_WANT_ATTACHED)) {
+        string sTouchText = "";
+        if (llGetListLength(lParams) > 1)
+            sTouchText = llList2String(lParams, 1);
+        if (sTouchText) {
+            if (sButton == sTouchText || sButton == "Touch") {
+                key kObj = llList2Key(g_lToys, iIndex+2);
+                CoreComm(kObj, "touch|"+(string)kActor+"|"+(string)iAuth);
                 return "1";
             }
-            lButtons += "LeaveLocked";
+            lButtons += sTouchText;
         }
-            
-        if (iFlags & FLAG_PERMANENT) {
-            if (sButton == "Amnesty") {
-                DoAmnesty(kActor, iAuth, iIndex);
-                return "1";
-            }
-            lButtons += "Amnesty";
+    }
+
+    if (kActor == kController && kActor != g_kWearer) {
+        if (sButton == "LeaveLocked") {
+            DoLeaveLocked(kActor, iAuth, iIndex, "");
+            return "1";
         }
+        lButtons += "LeaveLocked";
+    }
+
+    if ((iPermanent && !iAmnesty) && (kActor == kController || (kHandler == g_kWearer && kActor == g_kWearer && iAuth == CMD_OWNER))) {
+        if (sButton == "Amnesty") {
+            DoAmnesty(kActor, iAuth, iIndex);
+            return "1";
+        }
+        lButtons += "Amnesty";
     }
     
     if (iCanTakeControl) {
@@ -287,7 +305,7 @@ string ToyMenu(key kActor, integer iAuth, integer iIndex, string sButton) {
         lButtons += "Take Control";
     }
     
-    if (kHandler != g_kWearer && (kActor == kHandler || iCanTakeControl)) {
+    if (kHandler != g_kWearer && (iCanAttach || iCanTakeControl)) {
         // Additional check - if kActor wouldn't normally have access (and
         //   only has access because of a temporary wider permission from
         //   LeaveLocked), don't allow kActor to revoke that wider permission
