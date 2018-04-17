@@ -105,11 +105,10 @@ DebugFreeMem() {
 }
 
 CoreComm(key kTarget, string sMessage) {
-    if (g_iDebug) {
+    if (g_iDebug)
         llOwnerSay(llGetScriptName()+" C> " + sMessage);
-        integer iCoreChan = -llAbs((integer)("0x" + llGetSubString(g_kWearer,30,-1)));
-        llRegionSayTo(kTarget, iCoreChan^1, sMessage);
-    }
+    integer iCoreChan = -llAbs((integer)("0x" + llGetSubString(g_kWearer,30,-1)));
+    llRegionSayTo(kTarget, iCoreChan^1, sMessage);
 }
 
 CoreEcho(string sMessage) {
