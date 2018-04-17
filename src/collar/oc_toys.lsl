@@ -263,11 +263,11 @@ string ToyMenu(key kActor, integer iAuth, integer iIndex, string sButton) {
         }
         
         if (kActor != g_kWearer) {
-            if (sButton == "Leave Locked") {
+            if (sButton == "LeaveLocked") {
                 DoLeaveLocked(kActor, iAuth, iIndex, "");
                 return "1";
             }
-            lButtons += "Leave Locked";
+            lButtons += "LeaveLocked";
         }
             
         if (iFlags & FLAG_PERMANENT) {
@@ -290,7 +290,7 @@ string ToyMenu(key kActor, integer iAuth, integer iIndex, string sButton) {
     if (kHandler != g_kWearer && (kActor == kHandler || iCanTakeControl)) {
         // Additional check - if kActor wouldn't normally have access (and
         //   only has access because of a temporary wider permission from
-        //   Leave Locked), don't allow kActor to revoke that wider permission
+        //   LeaveLocked), don't allow kActor to revoke that wider permission
         //   by releasing
         if (!(((iFlags & FLAG_PERM_MASK) == FLAG_PERM_OWNER && iAuth != CMD_OWNER) || ((iFlags & FLAG_PERM_MASK) && iAuth > CMD_TRUSTED))) {
             if (sButton == "Release") {
@@ -704,7 +704,7 @@ DoPermission(key kActor, integer iAuth, integer iIndex, string sButton) {
     
     string sPrompt = "\n[Toys]\t"+g_sAppVersion+"\n\nChoose who can take control of \""+sToy+"\".\n\n"+
         "• \"Anyone\" means anyone who can access the collar.\n"+
-        "• Leave Locked can override this setting temporarily using Shared or Playful.";
+        "• LeaveLocked can override this setting temporarily using Shared or Playful.";
     list lButtons = [
         Selectbox("Owner", ((iFlags & FLAG_PERM_MASK) == FLAG_PERM_OWNER)),
         Selectbox("Trusted", ((iFlags & FLAG_PERM_MASK) == FLAG_PERM_TRUSTED)),
