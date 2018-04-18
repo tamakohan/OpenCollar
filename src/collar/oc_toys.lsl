@@ -340,27 +340,6 @@ string ToyMenu(key kActor, integer iAuth, integer iIndex, string sButton) {
     return "1";
 }
 
-// To detach:
-// 1. LinkMessage oc_rlvsys to do the following: (Must tell it the toy kObj)
-//    1. If Dress is locked, send @remattach=y
-//    2. RegionSayTo the object to do the following:
-//       1. Send @clear,detachme=force
-// 2. When the object confirms it's detached via script:
-//    1. LinkMessage oc_rlvsys to do the following: (Must tell it the toy path and whether the toy is locked)
-//       1. If Dress is locked, send @remattach=n
-//       2. If toy is locked, send @attachthis:~oc_toys/orb o' testing=n
-
-// To attach:
-// 1. LinkMessage oc_rlvsys to do the following: (Must tell it the toy path and whether the toy is locked)
-//    1. If Dress is locked, send @addattach=y
-//    2. If toy is locked, send @attachthis:~oc_toys/orb o' testing=y
-//    3. Send @attachover:~oc_toys/orb o' testing=force
-// 2. When the object confirms it's attached via script:
-//    1. LinkMessage oc_rlvsys to do the following: (Must tell it the toy kObj)
-//       1. If Dress is locked, send @addattach=n
-//       2. If toy is locked, RegionSayTo the object to do the following:
-//          1. Send @detach=n
-
 ChangeAttached(integer iIndex, integer iRlvCmdFlags) {
     // [sToy, iFlags, kObj, sParams, kHandler, iHandlerRank]
     string sToy = llList2String(g_lToys, iIndex);
@@ -378,13 +357,13 @@ ChangeAttached(integer iIndex, integer iRlvCmdFlags) {
     if (((kHandler != g_kWearer) || (iFlags & FLAG_PERMANENT)) && !(iFlags & FLAG_AMNESTY))
         iRlvCmdFlags = iRlvCmdFlags | RCF_TOYLOCKED;
 
+    integer iPopMenu = FALSE;
     if (iRlvCmdFlags & RCF_ATTACH) {
         if (iRlvCmdFlags & RCF_PARTTWO) {
-            if (iFlags & FLAG_WANT_ATTACHED)
+            iPopMenu = (iFlags & FLAG_WANT_ATTACHED);
+            if (iPopMenu)
                 g_iNumAttaching -= 1;
-            else
-                iFlags = iFlags | FLAG_WANT_ATTACHED;
-            iFlags = iFlags | FLAG_ATTACHED;
+            iFlags = iFlags | FLAG_ATTACHED | FLAG_WANT_ATTACHED;
         }
         if (g_iNumAttaching == 0)
             iRlvCmdFlags = iRlvCmdFlags | RCF_OVERRIDE;
@@ -394,11 +373,10 @@ ChangeAttached(integer iIndex, integer iRlvCmdFlags) {
         }
     } else {
         if (iRlvCmdFlags & RCF_PARTTWO) {
-            if (iFlags & FLAG_WANT_ATTACHED)
-                iFlags = iFlags &~ FLAG_WANT_ATTACHED;
-            else
+            iPopMenu = !(iFlags & FLAG_WANT_ATTACHED);
+            if (iPopMenu)
                 g_iNumDetaching -= 1;
-            iFlags = iFlags &~ FLAG_ATTACHED;
+            iFlags = iFlags &~ (FLAG_ATTACHED | FLAG_WANT_ATTACHED);
         }
         if (g_iNumDetaching == 0)
             iRlvCmdFlags = iRlvCmdFlags | RCF_OVERRIDE;
@@ -419,7 +397,12 @@ ChangeAttached(integer iIndex, integer iRlvCmdFlags) {
             Notify([2, sToy], kHandler);
         else
             Notify([1, sToy], kHandler);
-        ToyMenu(kHandler, iHandlerRank, iIndex, "");
+        if (iPopMenu && !(iFlags & FLAG_LEFT_MASK)) {
+            if (iFlags & FLAG_AMNESTY)
+                ToyMenu(g_kWearer, iHandlerRank, iIndex, "");
+            else if (kHandler != g_kWearer || !(iFlags & FLAG_PERMANENT))
+                ToyMenu(kHandler, iHandlerRank, iIndex, "");
+        }
     }
     
     SetTimer();
@@ -678,13 +661,16 @@ DoPermanent(key kActor, integer iAuth, integer iIndex) {
     
     g_lToys = llListReplaceList(g_lToys, [iFlags ^ FLAG_PERMANENT], iIndex+1, iIndex+1);
     
+    integer iPopMenu = TRUE;
     if (kActor == g_kWearer) {
         if (iFlags & FLAG_PERMANENT) {
             SetLocked(iIndex, FALSE);
         } else {
             SetLocked(iIndex, TRUE);
-            if (!(iFlags & FLAG_ATTACHED))
+            if (!(iFlags & FLAG_ATTACHED)) {
                 ChangeAttached(iIndex, RCF_ATTACH);
+                iPopMenu = FALSE;
+            }
         }
     }
     
@@ -695,7 +681,8 @@ DoPermanent(key kActor, integer iAuth, integer iIndex) {
     else
         Notify([11, sToy], kActor);
 
-    ToyMenu(kActor, iAuth, iIndex, "");
+    if (iPopMenu)
+        ToyMenu(kActor, iAuth, iIndex, "");
 }
 
 DoPermission(key kActor, integer iAuth, integer iIndex, string sButton) {
