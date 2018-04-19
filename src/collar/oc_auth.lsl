@@ -292,17 +292,18 @@ AddUniquePerson(string sPersonID, string sToken, key kID) {
 
 SayOwners() {  // Give a "you are owned by" message, nicely formatted.
     integer iCount = llGetListLength(g_lOwner);
+    list lTemp = g_lOwner;
+    integer index = llListFindList(lTemp, [g_sWearerID]);
+    //integer vanilla = FALSE;
+    // don't show wearer in the owner list, actually don't show vanilla here at all for now.
+    if (~index) {
+        lTemp = llDeleteSubList(lTemp,index,index);
+        iCount -= 1;
+        //vanilla = TRUE;
+    }
+    string sMsg = "";
     if (iCount) {
-        list lTemp = g_lOwner;
-        integer index = llListFindList(lTemp, [g_sWearerID]);
-        //integer vanilla = FALSE;
-        // don't show wearer in the owner list, actually don't show vanilla here at all for now.
-        if (~index) {
-            lTemp = llDeleteSubList(lTemp,index,index);
-            iCount -= 1;
-            //vanilla = TRUE;
-        }
-        string sMsg = "You belong to ";
+        sMsg += "You belong to ";
         if (iCount == 1) {
             sMsg += NameURI(llList2String(lTemp,0))+".";
         } else if (iCount == 2) {
@@ -316,12 +317,15 @@ SayOwners() {  // Give a "you are owned by" message, nicely formatted.
             } while (index<iCount-2);
             sMsg += NameURI(llList2String(lTemp,index))+" and "+NameURI(llList2String(lTemp,index+1))+".";
         }
-        //if (vanilla)
-        //    sMsg += " Vanilla enabled.";
-        //else
-        //    sMsg += " Vanilla disabled.";
-        llMessageLinked(LINK_DIALOG,NOTIFY,"0"+sMsg,g_sWearerID);
     }
+    //if (sMsg)
+    //    sMsg += " ";
+    //if (vanilla)
+    //    sMsg += "Vanilla enabled.";
+    //else
+    //    sMsg += "Vanilla disabled.";
+    if (sMsg)
+        llMessageLinked(LINK_DIALOG,NOTIFY,"0"+sMsg,g_sWearerID);
 }
 
 integer in_range(key kID) {
