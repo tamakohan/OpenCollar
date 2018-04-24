@@ -17,8 +17,8 @@ key g_kWearer;
 integer g_iDebug = 0;
 
 integer g_iChangeAttachedTimeout = 10;
-integer g_iGraceInterval = 2; // 60
-integer g_iGraceThreshold = 4; // 15
+integer g_iGraceInterval = 60;
+integer g_iGraceThreshold = 15;
 
 //MESSAGE MAP
 //integer CMD_ZERO = 0;
