@@ -102,7 +102,7 @@ list OC_SCRIPTS = [
     "oc_toys_b"
 ];
 
-key g_kWebLookup;
+key g_kContactRequest;
 key g_kCurrentUser;
 
 list g_lAppsButtons;
@@ -136,12 +136,11 @@ integer g_iUpdateHandle;
 key g_kUpdaterOrb;
 integer g_iUpdateFromMenu;
 
-key github_version_request;
-string g_sOtherDist;
-key news_request;
+key g_kVersionRequest;
+key g_kNewsRequest;
 string g_sLastNewsTime = "0";
 
-string g_sWeb = "https://raw.githubusercontent.com/OpenCollarTeam/OpenCollar/master/web/";
+string g_sSource = "https://raw.githubusercontent.com/tamakohan/OpenCollar/master/";
 
 integer g_iUpdateAuth;
 integer g_iWillingUpdaters = 0;
@@ -222,16 +221,15 @@ UpdateConfirmMenu() {
 }
 
 HelpMenu(key kID, integer iAuth) {
-    string sPrompt="\nOpenCollar Version: "+g_sCollarVersion+g_sDevStage;
-    sPrompt+="\n\nPrefix: %PREFIX%\nChannel: %CHANNEL%\nSafeword: "+g_sSafeWord;
-    sPrompt+="\n\nDocumentation: https://github.com/OpenCollarTeam/OpenCollar/wiki";
+    string sPrompt="\nThis is Tama's OpenCollar v"+g_sCollarVersion+"."+g_sTamaCollarVersion+
+        ", an unofficial release based on official OpenCollar "+g_sCollarVersion+g_sDevStage+".";
+    sPrompt+="\n\nNot affiliated with or supported by the official OpenCollar team in any way.";
     if(!g_iLatestVersion) sPrompt+="\n\n[Update available!]";
     //Debug("max memory used: "+(string)llGetSPMaxMemory());
-    list lUtility = [UPMENU];
     string sNewsButton="☐ News";
     if (g_iNews) sNewsButton="☑ News";
     list lStaticButtons=[GIVECARD,CONTACT,LICENSE,sNewsButton,"Update"];
-    Dialog(kID, sPrompt, lStaticButtons, lUtility, 0, iAuth, "Help/About");
+    Dialog(kID, sPrompt, lStaticButtons, [UPMENU], 0, iAuth, "Help/About");
 }
 
 MainMenu(key kID, integer iAuth) {
@@ -275,14 +273,14 @@ UserCommand(integer iNum, string sStr, key kID, integer fromMenu) {
         }
     } else if (sStr == "info") {
         string sMessage = "\n\nModel: "+llGetObjectName();
-        sMessage += "\nOpenCollar Version: "+g_sCollarVersion+g_sDevStage+" ("+(string)g_fBuildVersion+")";
-        sMessage += "\nModified by Tama (v"+g_sCollarVersion+"."+g_sTamaCollarVersion+")";
+        sMessage += "\nTama's OpenCollar v"+g_sCollarVersion+"."+g_sTamaCollarVersion;
+        sMessage += "\nBased on official OpenCollar "+g_sCollarVersion+g_sDevStage+" ("+(string)g_fBuildVersion+")";
         sMessage += "\nUser: "+llGetUsername(g_kWearer);
         sMessage += "\nPrefix: %PREFIX%\nChannel: %CHANNEL%\nSafeword: "+g_sSafeWord;
         llMessageLinked(LINK_DIALOG,NOTIFY,"1"+sMessage,kID);
     } else if (sStr == "license") {
         if(llGetInventoryType(".license")==INVENTORY_NOTECARD) llGiveInventory(kID,".license");
-        else llMessageLinked(LINK_DIALOG,NOTIFY,"0"+"The license card has been removed from this %DEVICETYPE%. Please find the recent revision [https://raw.githubusercontent.com/OpenCollarTeam/OpenCollar/master/LICENSE here].",kID);
+        else llMessageLinked(LINK_DIALOG,NOTIFY,"0"+"The license card has been removed from this %DEVICETYPE%. Please find the recent revision ["+g_sSource+"LICENSE here].",kID);
         if (fromMenu) HelpMenu(kID, iNum);
     } else if (sStr == "help") {
         llGiveInventory(kID, HELPCARD);
@@ -292,7 +290,7 @@ UserCommand(integer iNum, string sStr, key kID, integer fromMenu) {
     else if (sStr == "settings") {
         if (iNum == CMD_OWNER || iNum == CMD_WEARER) SettingsMenu(kID, iNum);
     } else if (sStr == "contact") {
-        g_kWebLookup = llHTTPRequest(g_sWeb+"contact.txt", [HTTP_METHOD, "GET", HTTP_VERBOSE_THROTTLE, FALSE], "");
+        g_kContactRequest = llHTTPRequest(g_sSource+"web/contact.txt", [HTTP_METHOD, "GET", HTTP_VERBOSE_THROTTLE, FALSE], "");
         g_kCurrentUser = kID;
         if (fromMenu) HelpMenu(kID, iNum);
     } else if (sCmd == "menuto") {
@@ -338,14 +336,13 @@ UserCommand(integer iNum, string sStr, key kID, integer fromMenu) {
                 g_iNews=FALSE;
                 llMessageLinked(LINK_DIALOG,NOTIFY,"1"+"News feature disabled.",kID);
                 llMessageLinked(LINK_SAVE,LM_SETTING_SAVE,"intern_news=0","");
-            } else if (sStr=="news on"){
-                g_iNews=TRUE;
-                llMessageLinked(LINK_SAVE,LM_SETTING_DELETE,"intern_news","");
-                g_sLastNewsTime="0";
-                news_request = llHTTPRequest(g_sWeb+"news.txt", [HTTP_METHOD, "GET", HTTP_VERBOSE_THROTTLE, FALSE], "");
             } else {
+                if (sStr=="news on"){
+                    g_iNews=TRUE;
+                    llMessageLinked(LINK_SAVE,LM_SETTING_DELETE,"intern_news","");
+                }
                 g_sLastNewsTime="0";
-                news_request = llHTTPRequest(g_sWeb+"news.txt", [HTTP_METHOD, "GET", HTTP_VERBOSE_THROTTLE, FALSE], "");
+                g_kNewsRequest = llHTTPRequest(g_sSource+"web/news.txt", [HTTP_METHOD, "GET", HTTP_VERBOSE_THROTTLE, FALSE], "");
             }
         } else llMessageLinked(LINK_DIALOG,NOTIFY,"0"+"%NOACCESS%",kID);
         if (fromMenu) HelpMenu(kID, iNum);
@@ -389,22 +386,11 @@ UserCommand(integer iNum, string sStr, key kID, integer fromMenu) {
             }
         }
     } else if (sCmd == "version") {
-        string sVersion = "\n\nOpenCollar Version: "+g_sCollarVersion+g_sDevStage+" ("+(string)g_fBuildVersion+")";
+        string sVersion = "\nTama's OpenCollar v"+g_sCollarVersion+"."+g_sTamaCollarVersion;
+        sVersion += "\nBased on official OpenCollar "+g_sCollarVersion+g_sDevStage+" ("+(string)g_fBuildVersion+")";
         if(!g_iLatestVersion) sVersion+="\nUPDATE AVAILABLE: A new patch has been released.\nPlease install at your earliest convenience. Thanks!\n";
         llMessageLinked(LINK_DIALOG,NOTIFY,"0"+sVersion,kID);
-    }/* else if (sCmd == "objectversion") {
-        // ping from an object, we answer to it on the object channel
-        // inlined single use GetOwnerChannel(key kOwner, integer iOffset) function
-        integer iChan = (integer)("0x"+llGetSubString((string)g_kWearer,2,7)) + 1111;
-        if (iChan>0) iChan=iChan*(-1);
-        if (iChan > -10000) iChan -= 30000;
-        llSay(iChan,(string)g_kWearer+"\\version="+g_sCollarVersion);
-    } else if (sCmd == "attachmentversion") {
-        // Reply to version request from "garvin style" attachment
-        integer iInterfaceChannel = (integer)("0x" + llGetSubString(g_kWearer,30,-1));
-        if (iInterfaceChannel > 0) iInterfaceChannel = -iInterfaceChannel;
-        llRegionSayTo(g_kWearer, iInterfaceChannel, "version="+g_sCollarVersion);
-    }*/
+    }
 }
 
 string GetTimestamp() { // Return a string of the date and time
@@ -538,7 +524,7 @@ RebuildMenu() {
 }
 
 init (){
-    github_version_request = llHTTPRequest(g_sWeb+"version.txt", [HTTP_METHOD, "GET", HTTP_VERBOSE_THROTTLE, FALSE], "");
+    g_kVersionRequest = llHTTPRequest(g_sSource+"web/version.txt", [HTTP_METHOD, "GET", HTTP_VERBOSE_THROTTLE, FALSE], "");
     g_iWaitRebuild = TRUE;
     PermsCheck();
     llSetTimerEvent(1.0);
@@ -555,7 +541,7 @@ default {
         g_sPrefix = llToLower(llGetSubString(llKey2Name(llGetOwner()), 0,1));
         g_kWearer = llGetOwner();
         if (!llGetStartParameter())
-            news_request = llHTTPRequest(g_sWeb+"news.txt", [HTTP_METHOD, "GET", HTTP_VERBOSE_THROTTLE, FALSE], "");
+            g_kNewsRequest = llHTTPRequest(g_sSource+"web/news.txt", [HTTP_METHOD, "GET", HTTP_VERBOSE_THROTTLE, FALSE], "");
         BuildLockElementList();
         init();
         //Debug("Starting, max memory used: "+(string)llGetSPMaxMemory());
@@ -688,7 +674,6 @@ default {
                 if (sValue=="default") g_sUnlockSound=g_sDefaultUnlockSound;
                 else if ((key)sValue!=NULL_KEY || llGetInventoryType(sValue)==INVENTORY_SOUND) g_sUnlockSound=sValue;
             } else if (sToken == g_sGlobalToken+"safeword") g_sSafeWord = sValue;
-            else if (sToken == "intern_dist") g_sOtherDist = sValue;
             else if (sToken == g_sGlobalToken+"debug") {
                 g_iDebug = (integer) sValue;
             } else if (sToken == g_sGlobalToken+"prefix") {
@@ -696,7 +681,7 @@ default {
             } else if (sToken == g_sGlobalToken+"channel") {
                 g_iChannel = (integer) sValue;
             } else if (sStr == "settings=sent") {
-                if (g_iNews) news_request = llHTTPRequest(g_sWeb+"news.txt", [HTTP_METHOD, "GET", HTTP_VERBOSE_THROTTLE, FALSE], "");
+                if (g_iNews) g_kNewsRequest = llHTTPRequest(g_sSource+"web/news.txt", [HTTP_METHOD, "GET", HTTP_VERBOSE_THROTTLE, FALSE], "");
                 if (g_iDebug && !ALLOW_DEBUG) {
                     g_iDebug = FALSE;
                     llMessageLinked(LINK_SAVE, LM_SETTING_SAVE, g_sGlobalToken+"debug=0", "");
@@ -761,12 +746,12 @@ default {
 
     http_response(key id, integer status, list meta, string body) {
         if (status == 200) { // be silent on failures.
-            if (id == g_kWebLookup){
+            if (id == g_kContactRequest){
                 llMessageLinked(LINK_DIALOG,NOTIFY,"0"+body,g_kCurrentUser);
-            } else if (id == github_version_request) {  // strip the newline off the end of the text
+            } else if (id == g_kVersionRequest) {  // strip the newline off the end of the text
                 if (compareVersions(llStringTrim(body, STRING_TRIM),g_sCollarVersion)) g_iLatestVersion=FALSE;
                 else g_iLatestVersion=TRUE;
-            } else if (id == news_request) {  // We got a response back from the news page on Github.  See if it's new enough to report to the user.
+            } else if (id == g_kNewsRequest) {  // We got a response back from the news page on Github.  See if it's new enough to report to the user.
                 // The first line of a news item should be space delimited list with timestamp in format yyyymmdd.n as the last field, where n is the number of messages on this day
                 integer index = llSubStringIndex(body,"\n");
                 string this_news_time = llGetSubString(body,0,index-1);
@@ -803,7 +788,7 @@ default {
             g_iWaitUpdate = FALSE;
             llListenRemove(g_iUpdateHandle);
             if (!g_iWillingUpdaters) {   //if no updaters responded, get upgrader info from web and remenu
-                g_kWebLookup = llHTTPRequest(g_sWeb+"update.txt", [HTTP_METHOD, "GET", HTTP_VERBOSE_THROTTLE, FALSE], "");
+                g_kContactRequest = llHTTPRequest(g_sSource+"web/update.txt", [HTTP_METHOD, "GET", HTTP_VERBOSE_THROTTLE, FALSE], "");
                 if (g_iUpdateFromMenu) HelpMenu(g_kCurrentUser,g_iUpdateAuth);
             } else if (g_iWillingUpdaters > 1) {    //if too many updaters, PANIC!
                 llMessageLinked(LINK_DIALOG,NOTIFY,"0"+"Multiple updaters were found nearby. Please remove all but one and try again.",g_kCurrentUser);
