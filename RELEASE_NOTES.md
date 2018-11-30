@@ -2,6 +2,20 @@
 
 For older release notes, check the official repository.
 
+## 7.1.3
+
+- Added the "Isolation" App, which contains Deafener, Muffler/Renamer, and Blindfold functions.
+  - All of these are functional only and do not have any visual appearance; they are currently designed to be used in combination with unscripted visual accessories.
+  - The script is based on the old OpenMuzzle for OC 3.998 script.
+- Usability improvements to # Folders:
+  - The app will now (re-)show the actions menu after attaching or detaching folders or changing locks.
+  - It will assume the attach or detach succeeded as far as calculating the state for the menu is concerned, but one can easily re-calculate by going out of the menu and back in.
+  - This change helps with troubleshooting and helps mitigate lag and afk avatar issues.
+- Usability improvements to Leash:
+  - Added Stay, Unstay and Beckon to the Leash menu; previously these were only usable via chat commands.
+  - Made Stay and Unstay messages better for vanilla avatars toggling stay on themselves.
+  - Made Beckon work for anyone as long as the avatar is not leashed or following.
+
 ## 7.1.2
 
 - Added the "Quote" App, which allows actors of an appropriate rank to set or erase the quote that's displayed in the Main Menu.
