@@ -14,7 +14,7 @@ integer ALLOW_DEBUG = FALSE;
 
 string g_sDevStage="";
 string g_sCollarVersion="7.1";
-string g_sTamaCollarVersion="2"; // we will reset this to "1" every time we update to a new upstream OpenCollar version
+string g_sTamaCollarVersion="3"; // we will reset this to "1" every time we update to a new upstream OpenCollar version
 integer g_iLatestVersion=TRUE;
 float g_fBuildVersion = 200000.0;
 
@@ -84,6 +84,7 @@ list OC_SCRIPTS = [
     "oc_dialog",
     "oc_exceptions",
     "oc_folders",
+    "oc_isolation",
     "oc_label",
     "oc_leash",
     "oc_meshlabel",
