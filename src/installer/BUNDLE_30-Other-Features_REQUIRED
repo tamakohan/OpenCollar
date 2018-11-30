@@ -2,6 +2,7 @@ SCRIPT|oc_bell
 SCRIPT|oc_capture
 SCRIPT|oc_exceptions
 SCRIPT|oc_folders
+SCRIPT|oc_isolation
 SCRIPT|oc_label
 SCRIPT|oc_leash
 SCRIPT|oc_meshlabel
