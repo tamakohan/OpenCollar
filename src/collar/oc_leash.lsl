@@ -412,18 +412,28 @@ UserCommand(integer iAuth, string sMessage, key kMessageID, integer bFromMenu) {
         //debug(sMessage);
         if (sMessage=="leashmenu" || sMessage == "menu leash"){
             list lButtons;
-            if (kMessageID != g_kWearer) lButtons += "Grab";// Only if not the wearer.
-            else lButtons += ["-"];
-            if (g_kLeashedTo != NULL_KEY) {
-                if (g_bFollowMode) lButtons += ["Unfollow"];
-                else lButtons += ["Unleash"];
+            if (kMessageID == g_kWearer)
+                lButtons += ["-"]; // Wearer cannot grab or yank themselves
+            else if (kMessageID == g_kLeashedTo)
+                lButtons += "Yank"; // Leash holder can yank the leash
+            else
+                lButtons += "Grab"; // Anyone else can grab the leash
+            if (g_kLeashedTo == NULL_KEY) {
+                if (kMessageID == g_kWearer)
+                    lButtons += ["-"]; // Wearer cannot beckon themselves
+                else
+                    lButtons += "Beckon"; // If not leashed, avatar can be beckoned over instead
+            } else {
+                if (g_bFollowMode)
+                    lButtons += "Unfollow";
+                else
+                    lButtons += "Unleash";
             }
-            else lButtons += "-";
-            if (kMessageID == g_kLeashedTo) lButtons += "Yank";//only if leash holder
-            else lButtons += "-";
-            lButtons += ["Follow"];
-            lButtons += ["Anchor","Pass"];
-            lButtons += ["Length"];
+            if (g_iStay)
+                lButtons += "☑ Stay";
+            else
+                lButtons += "☐ Stay";
+            lButtons += ["Follow", "Anchor", "Pass", "Length"];
             lButtons += g_lButtons;
 
             string sPrompt = "\n[Leash]\n";
@@ -463,29 +473,41 @@ UserCommand(integer iAuth, string sMessage, key kMessageID, integer bFromMenu) {
                 g_iRezAuth=iAuth;
                 llRezObject("Pretty Balloon", llGetPos() + (<0.2, 0.0, 1.2> * llGetRot()), ZERO_VECTOR, llEuler2Rot(<0, 0, 0> * DEG_TO_RAD), 0);
             }
-        } else if (sMessage == "yank" && kMessageID == g_kLeashedTo) {
-            //Person holding the leash can yank.
-            if(llGetAgentInfo(g_kWearer)&AGENT_SITTING) llMessageLinked(LINK_RLV, RLV_CMD, "unsit=force", "realleash");
-            if (bFromMenu) UserCommand(iAuth, "leashmenu", kMessageID ,bFromMenu);
-            YankTo(kMessageID);
-        } else if (sMessage == "beckon" && iAuth == CMD_OWNER) YankTo(kMessageID);
-        else if (sMessage == "stay") {
+        } else if ((sMessage == "yank" && kMessageID == g_kLeashedTo) || (sMessage == "beckon" && g_kLeashedTo == NULL_KEY)) {
+            if (kMessageID != g_kWearer) {
+                // Person holding the leash can yank. If not leashed, others can beckon.
+                if (llGetAgentInfo(g_kWearer) & AGENT_SITTING)
+                    llMessageLinked(LINK_RLV, RLV_CMD, "unsit=force", "realleash");
+                if (bFromMenu)
+                    UserCommand(iAuth, "leashmenu", kMessageID, bFromMenu);
+                YankTo(kMessageID);
+            }
+        } else if (sMessage == "stay" || sMessage == "☐ stay") {
             if (iAuth <= CMD_GROUP) {
                 g_iStayRank = iAuth;
                 g_iStay = TRUE;
                 string sCmdGiver = NameURI(kMessageID);
                 llRequestPermissions(g_kWearer, PERMISSION_TAKE_CONTROLS);
-                llMessageLinked(LINK_DIALOG,NOTIFY,"0"+sCmdGiver + " commands you to stay in place. You can't move on your own now!",g_kWearer);
-                llMessageLinked(LINK_DIALOG,NOTIFY,"0"+"Yay! %WEARERNAME% can't move on their own now! Cast a leash to pull them along or type \"/%CHANNEL% %PREFIX% move\" if you change your mind.",kMessageID);
-                if (bFromMenu) UserCommand(iAuth, "leashmenu", kMessageID ,bFromMenu);
+                if (kMessageID == g_kWearer) {
+                    // Don't send two messages to a vanilla avatar toggling stay.
+                    llMessageLinked(LINK_DIALOG, NOTIFY, "0You can't move on your own now!", g_kWearer);
+                } else {
+                    llMessageLinked(LINK_DIALOG, NOTIFY, "0"+sCmdGiver + " commands you to stay in place. You can't move on your own now!", g_kWearer);
+                    llMessageLinked(LINK_DIALOG, NOTIFY, "0"+"%WEARERNAME% can't move on their own now! Cast a leash to pull them along or type \"/%CHANNEL% %PREFIX% move\" if you change your mind.", kMessageID);
+                }
+                if (bFromMenu)
+                    UserCommand(iAuth, "leashmenu", kMessageID ,bFromMenu);
             }
-        } else if ((sMessage == "unstay" || sMessage == "move") && g_iStay) {
+        } else if ((sMessage == "unstay" || sMessage == "move" || sMessage == "☑ stay") && g_iStay) {
             if (iAuth <= g_iStayRank) {
                 g_iStay = FALSE;
                 llReleaseControls();
                 llMessageLinked(LINK_DIALOG,NOTIFY,"0"+"You are free to move again.",g_kWearer);
-                llMessageLinked(LINK_DIALOG,NOTIFY,"0"+"You allowed %WEARERNAME% to move freely again.",kMessageID);
-                if (bFromMenu) UserCommand(iAuth, "leashmenu", kMessageID ,bFromMenu);
+                // Don't send two messages to a vanilla avatar toggling stay.
+                if (kMessageID != g_kWearer)
+                    llMessageLinked(LINK_DIALOG,NOTIFY,"0"+"You allowed %WEARERNAME% to move freely again.",kMessageID);
+                if (bFromMenu)
+                    UserCommand(iAuth, "leashmenu", kMessageID ,bFromMenu);
             }
         } else if (sMessage == "strict on") {
             if (g_iStrictModeOn) llMessageLinked(LINK_DIALOG,NOTIFY,"0"+"Strict leashing is already enabled.",kMessageID);
