@@ -68,8 +68,6 @@ list g_lFolderLocks; // strided list: folder path, lock type (4 bits field)
 
 string g_sRootFolder = "";
 
-integer g_iTimeOut = 60;
-
 integer g_iFolderRLV = 78467;
 integer g_iRLVaOn = FALSE;
 
@@ -80,10 +78,9 @@ integer g_iMenuStride = 3;
 
 integer g_iListener;
 
-// Asynchronous menu request. Alas still needed since some menus are triggered after an answer from the viewer.
+// Who to send the next menu to after an answer from the wearer's viewer.
 key g_kAsyncMenuUser;
 integer g_iAsyncMenuAuth;
-integer g_iAsyncMenuRequested = FALSE;
 
 string g_sFolderType; //what to do with those folders
 string g_sCurrentFolder;
@@ -97,9 +94,13 @@ integer g_iLastQuickTarget;
 integer g_iLastQuickWorn;
 list g_lLastQuickFolders;
 
-list g_lToCheck; //stack of folders to check, used for subfolder tree search
+list g_lToCheck; // queue of folders to check in subfolder search
+list g_lPartialResults; // list of partial results in subfolder search
+list g_lSearchList; // queue of folders to search
 
-list g_lSearchList; //list of folders to search
+string g_sFirstsearch;
+string g_sNextsearch;
+string g_sBuildpath;
 
 integer g_iLastFolderState;
 
@@ -153,12 +154,43 @@ ParentFolder() {
     else g_sCurrentFolder="";
 }
 
+SearchRequest(string sRequest) {
+    if (g_iListener) {
+        // clear old request
+        llSetTimerEvent(0.0);
+        llListenRemove(g_iListener);
+        g_iListener = 0;
+
+        if (sRequest != "=") {
+            // unsuccessful request, clear lists
+            g_lSearchList = [];
+            g_lToCheck = [];
+            g_lPartialResults = [];
+
+            if (g_iDebug) {
+                string s2 = " have special characters in folder names, or if someone else has taken over the menu.";
+                string s1 = " previous search request failed. Check if you are lagging, if you"+s2;
+                if (g_kAsyncMenuUser == g_kWearer) {
+                    llMessageLinked(LINK_DIALOG, NOTIFY, "0"+"Your"+s1, g_kAsyncMenuUser);
+                } else {
+                    llMessageLinked(LINK_DIALOG, NOTIFY, "0"+"Your previous search request failed. Check if the wearer is lagging, if they"+s2, g_kAsyncMenuUser);
+                    llMessageLinked(LINK_DIALOG, NOTIFY, "0"+"secondlife:///app/agent/"+(string)g_kAsyncMenuUser+"/about's"+s1, g_kWearer);
+                }
+            }
+        }
+    }
+
+    if (sRequest != "" && sRequest != "=") {
+        g_iFolderRLV = 9999 + llRound(llFrand(9999999.0));
+        g_iListener = llListen(g_iFolderRLV, "", llGetOwner(), "");
+        llSetTimerEvent(20.0);
+        RlvSay(sRequest+"="+(string)g_iFolderRLV);
+    }
+}
+
 QueryFolders(string sType) {
     g_sFolderType = sType;
-    g_iFolderRLV = 9999 + llRound(llFrand(9999999.0));
-    g_iListener = llListen(g_iFolderRLV, "", llGetOwner(), "");
-    llSetTimerEvent(g_iTimeOut);
-    RlvSay("@getinvworn:"+g_sCurrentFolder+"=" + (string)g_iFolderRLV);
+    SearchRequest("@getinvworn:"+g_sCurrentFolder);
 }
 
 string lockFolderButton(integer iLockState, integer iLockNum, integer iAuth) {
@@ -361,9 +393,6 @@ doLockFolder(integer iIndex) {
 
 // Browsing menu, called asynchronously only (after querying folder state). Queries user and auth from globals.
 FolderBrowseMenu(string sStr) {
-    g_iAsyncMenuRequested = FALSE;
-    list lUtilityButtons = [UPMENU];
-    string sPrompt = "\n[RLV Folders]\n\nCurrent folder is " + RelativeFolder() + ".\n";
     list sData = llParseStringKeepNulls(sStr, [","], []);
     string sFirst = llList2String(sData, 0);
     sData = llListSort(llList2List(sData, 1, -1), 1, 1);
@@ -371,18 +400,13 @@ FolderBrowseMenu(string sStr) {
     list lItem;
     integer iWorn;
     list lFolders = [];
-    // now add the button for wearing all recursively when it makes sense
-    if (g_sCurrentFolder != "" && g_sCurrentFolder != g_sRootFolder) {
-        lItem=llParseString2List(sFirst,["|"],[]);
-        iWorn=llList2Integer(lItem,0);
-        g_iLastFolderState=iWorn;
-        if (iWorn / 10 == 1 ) sPrompt += "It has wearable items";
-        else if (iWorn / 10 == 2 ) sPrompt += "It has wearable and removable items";
-        else if (iWorn / 10 == 3 ) sPrompt += "It has removable items";
-        else if (iWorn / 10 == 0 ) sPrompt += "It does not directly have any wearable or removable item";
-        sPrompt += ".\n";
-        lUtilityButtons += [ACTIONS_CURRENT];
-    }
+    string sTarget;
+
+    g_iLastFolderState = llList2Integer(llParseString2List(sFirst, ["|"], []), 0);
+    
+    if (g_sFolderType == "subbrowse")
+        sTarget = llList2String(llParseString2List(g_sCurrentFolder, ["/"], []), -1);
+
     g_iQuickCount = 0;
     for (i=0; i < llGetListLength(sData); i++) {
         lItem = llParseString2List(llList2String(sData, i), ["|"], []);
@@ -394,12 +418,49 @@ FolderBrowseMenu(string sStr) {
             g_iQuickCount += 1;
             g_iQuickWorn = i;
         }
+        if (sFolder == sTarget) {
+            g_iLastQuickTarget = i;
+            g_iLastFolderState = iWorn;
+        }
     }
     if (g_iQuickCount != 1)
         g_iQuickWorn = -1;
     g_lQuickFolders = lFolders;
+
+    if (g_sFolderType == "subbrowse") {
+        g_iLastQuickCount = g_iQuickCount;
+        g_iLastQuickWorn = g_iQuickWorn;
+        g_lLastQuickFolders = g_lQuickFolders;
+        if ((g_iLastFolderState % 10) == 0) {
+            // open actions menu if requested folder does not have subfolders
+            FolderActionsMenu(g_iLastFolderState, g_kAsyncMenuUser, g_iAsyncMenuAuth);
+        } else {
+            QueryFolders("browse");
+        }
+        return;
+    }
+
+    string sPrompt = "\n[RLV Folders]\n\nCurrent folder is " + RelativeFolder() + ".\n";
+    list lUtilityButtons = [UPMENU];
+    // now add the button for wearing all recursively when it makes sense
+    if (g_sCurrentFolder != "" && g_sCurrentFolder != g_sRootFolder) {
+        i = g_iLastFolderState / 10;
+        if (i == 1)
+            sPrompt += "It has wearable items.\n";
+        else if (i == 2)
+            sPrompt += "It has wearable and removable items.\n";
+        else if (i == 3)
+            sPrompt += "It has removable items.\n";
+        else if (i == 0)
+            sPrompt += "It does not directly have any wearable or removable item.\n";
+        lUtilityButtons += [ACTIONS_CURRENT];
+    }
+
     sPrompt += "\n- Click "+ACTIONS_CURRENT+" to manage this folder content.\n- Click one of the subfolders to browse it.\n";
-    if (g_sCurrentFolder != "" && g_sCurrentFolder != g_sRootFolder) {sPrompt += "- Click "+PARENT+" to browse parent folder.\n"; lUtilityButtons += [PARENT];}
+    if (g_sCurrentFolder != "" && g_sCurrentFolder != g_sRootFolder) {
+        sPrompt += "- Click "+PARENT+" to browse parent folder.\n";
+        lUtilityButtons += [PARENT];
+    }
     sPrompt += "- Click "+UPMENU+" to go back to "+g_sParentMenu+".\n";
     Dialog(g_kAsyncMenuUser, sPrompt, lFolders, lUtilityButtons, g_iPage, g_iAsyncMenuAuth, "FolderBrowse");
 }
@@ -425,15 +486,7 @@ handleMultiSearch() {
     searchSingle(sItem);
 }
 
-string g_sFirstsearch;
-string g_sNextsearch;
-string g_sBuildpath;
-
 searchSingle(string sItem) {
-    //open listener
-    g_iFolderRLV = 9999 + llRound(llFrand(9999999.0));
-    g_iListener = llListen(g_iFolderRLV, "", llGetOwner(), "");
-    //start timer
     g_sFirstsearch="";
     g_sNextsearch="";
     g_sBuildpath="";
@@ -444,16 +497,29 @@ searchSingle(string sItem) {
         g_sNextsearch=llList2String(tlist,1);
         sItem=g_sFirstsearch;
     }
-    llSetTimerEvent(g_iTimeOut);
-    if (g_iRLVaOn && g_sNextsearch == "")
-        RlvSay("@findfolders:"+sItem+"="+(string)g_iFolderRLV); //use multiple folder matching from RLVa if we have it
+    if (g_iRLVaOn)
+        SearchRequest("@findfolders:"+sItem); //use multiple folder matching from RLVa if we have it
     else
-        RlvSay("@findfolder:"+sItem+"="+(string)g_iFolderRLV);
+        SearchRequest("@findfolder:"+sItem);
+}
+
+HandleSearchResult(string sMsg, key kAv) {
+    if (llGetSubString(g_sFolderType,6,-1) == "browse") {
+        g_sCurrentFolder = sMsg;
+        ParentFolder();
+        QueryFolders("subbrowse");
+        g_sCurrentFolder = sMsg;
+    } else {
+        RlvSay("@"+llGetSubString(g_sFolderType,6,-1)+":"+sMsg+"=force");
+        addToHistory(sMsg);
+        llMessageLinked(LINK_DIALOG, NOTIFY, "1"+"Now "+llGetSubString(g_sFolderType,6,11)+"ing "+sMsg, kAv);
+    }
+    if (g_lSearchList != [])
+        handleMultiSearch();
 }
 
 // set a dialog to be requested after the next viewer answer
 SetAsyncMenu(key kAv, integer iAuth) {
-    g_iAsyncMenuRequested = TRUE;
     g_kAsyncMenuUser = kAv;
     g_iAsyncMenuAuth = iAuth;
 }
@@ -479,21 +545,24 @@ UserCommand(integer iNum, string sStr, key kID) {
     } else if (llToLower(sStr) == "history" || sStr == "menu ﹟RLV History") {
         g_iLastQuickCount = -1;
         HistoryMenu(kID, iNum);
+    } else if (llToLower(llGetSubString(sStr, 0, 7)) == "folders ") {
+        g_iLastQuickCount = -1;
+        g_sFolderType = "searchbrowse";
+        searchSingle(llDeleteSubString(sStr, 0, 7));
+        SetAsyncMenu(kID, iNum);
     } else if (llToLower(llGetSubString(sStr, 0, 4)) == "#rlv ") {
         g_iLastQuickCount = -1;
-        SetAsyncMenu(kID, iNum);
         g_sFolderType = "searchbrowse";
-        string sPattern = llDeleteSubString(sStr,0, 4);
-        llMessageLinked(LINK_DIALOG,NOTIFY,"0"+"Searching folder containing string \"" + sPattern + "\" for browsing.",g_kWearer);
-        searchSingle(sPattern);
+        searchSingle(llDeleteSubString(sStr, 0, 4));
+        SetAsyncMenu(kID, iNum);
     } else if (kID == g_kWearer && !llSubStringIndex(sStr, "rootfolder ")) {
         SetRoot(llGetSubString(sStr, 11, -1), TRUE);
     } else if (kID == g_kWearer && sStr == "rootfolder") {
         llMessageLinked(LINK_DIALOG, NOTIFY, "0"+"Root folder is \"" + g_sRootFolder + "\".", g_kWearer);
-    } else if (llGetSubString(sStr,0,0)=="+"||llGetSubString(sStr,0,0)=="-"||llGetSubString(sStr,0,0)=="&") {
-        g_kAsyncMenuUser = kID;
-        g_lSearchList=llParseString2List(sStr,[","],[]);
+    } else if (~llSubStringIndex("+-&", llGetSubString(sStr, 0, 0))) {
+        g_lSearchList = llParseString2List(sStr, [","], []);
         handleMultiSearch();
+        SetAsyncMenu(kID, iNum);
     }
 }
 
@@ -532,18 +601,16 @@ integer iMenuIndex = llListFindList(g_lMenuIDs, [kID]);
                     } else {
                         g_sCurrentFolder = sMessage;
                         g_iPage = 0;
-                        SetAsyncMenu(kAv, iAuth);
                         QueryFolders("history");
+                        SetAsyncMenu(kAv, iAuth);
                     }
                 } else if (sMenu == "MultipleFoldersOnSearch") {
                     if (sMessage == UPMENU) {
-                            g_sCurrentFolder = g_sRootFolder;
-                            QueryFolders("browse");
-                            return;
+                        g_sCurrentFolder = g_sRootFolder;
+                        QueryFolders("browse");
+                        return;
                     }
-                    RlvSay("@"+llGetSubString(g_sFolderType,6,-1)+":"+sMessage+"=force");
-                    addToHistory(sMessage);
-                    llMessageLinked(LINK_DIALOG,NOTIFY,"1"+"Now "+llGetSubString(g_sFolderType,6,11)+"ing "+sMessage,kAv);
+                    HandleSearchResult(sMessage, kAv);
                 } else if (sMenu == "FolderBrowse") {
                     if (sMessage == UPMENU) {
                         llMessageLinked(LINK_RLV, iAuth, "menu " + g_sParentMenu, kAv);
@@ -573,8 +640,8 @@ integer iMenuIndex = llListFindList(g_lMenuIDs, [kID]);
                         }
                     }
                     g_iPage = 0;
-                    SetAsyncMenu(kAv, iAuth);
                     QueryFolders("browse");
+                    SetAsyncMenu(kAv, iAuth);
                 } else if (sMenu == "FolderActions") {
                     integer iStateThis = g_iLastFolderState / 10;
                     integer iStateSub = g_iLastFolderState % 10;
@@ -659,8 +726,8 @@ integer iMenuIndex = llListFindList(g_lMenuIDs, [kID]);
                     }
                     if (llGetSubString(g_sFolderType, -4, -1) == "_sub")
                         ParentFolder();
-                    SetAsyncMenu(kAv, iAuth);
                     QueryFolders("browse");
+                    SetAsyncMenu(kAv, iAuth);
                 }
             }
         } else if (iNum == DIALOG_TIMEOUT) {
@@ -693,79 +760,73 @@ integer iMenuIndex = llListFindList(g_lMenuIDs, [kID]);
     }
 
     listen(integer iChan, string sName, key kID, string sMsg) {
-        llListenRemove(g_iListener);
-        llSetTimerEvent(0.0);
-        if (iChan == g_iFolderRLV) {   //we got a list of folders
+        if (iChan == g_iFolderRLV) {
+            // we got a list of folders
+            SearchRequest("=");
             RlvEcho(sMsg);
-            if (g_sFolderType=="browse") {
-                if (sMsg == "") { // try again if the folder name was wrong (may happen if the inventory changed)
+            if (g_sFolderType == "browse" || g_sFolderType == "subbrowse") {
+                if (sMsg == "") {
+                    // re-show root folder if the folder name was wrong (may happen if the inventory changed)
                     g_iLastQuickCount = -1;
                     g_sCurrentFolder = g_sRootFolder;
                     g_iPage = 0;
                     QueryFolders("browse");
-                } else FolderBrowseMenu(sMsg);
-            } else if (g_sFolderType=="history") {
+                } else {
+                    FolderBrowseMenu(sMsg);
+                }
+            } else if (g_sFolderType == "history") {
                 list sData = llParseStringKeepNulls(sMsg, [",", "|"], []);
                 integer iState = llList2Integer(sData, 1);
                 FolderActionsMenu(iState, g_kAsyncMenuUser, g_iAsyncMenuAuth);
-            } else if (llGetSubString(g_sFolderType,0,5)=="search") {
-                if (sMsg=="") llMessageLinked(LINK_DIALOG,NOTIFY,"0"+sMsg+"No folder found.",g_kAsyncMenuUser);
-                else if (llGetSubString(g_sFolderType,6,-1)=="browse") {
-                    g_iLastQuickCount = -1;
-                    g_sCurrentFolder = sMsg;
-                    QueryFolders("browse");
-                } else {
-                    if(g_sFirstsearch!="")
-                    {
-                        integer idx=llSubStringIndex(llToLower(sMsg),llToLower(g_sFirstsearch));
-                        g_sBuildpath=llGetSubString(sMsg,0,idx);
-                        sMsg=llDeleteSubString(sMsg,0,idx);
-                        idx=llSubStringIndex(sMsg,"/");
-                        g_sBuildpath+=llGetSubString(sMsg,0,idx);
-                        g_sFirstsearch="";
-                        g_iListener = llListen(g_iFolderRLV, "", llGetOwner(), "");
-                        llSetTimerEvent(g_iTimeOut);
-                        RlvSay("@getinv:"+g_sBuildpath+"="+(string)g_iFolderRLV);
+            } else if (llGetSubString(g_sFolderType, 0, 5) == "search") {
+                list lMultiFolders = llParseString2List(sMsg, [","], []);
+                integer iResults = llGetListLength(lMultiFolders);
+                if (g_sNextsearch) {
+                    string sResult;
+                    integer iIndex;
+                    if (g_sBuildpath) {
+                        for (iIndex = 0; iIndex < iResults; iIndex++) {
+                            sResult = llList2String(lMultiFolders, iIndex);
+                            if (~llSubStringIndex(llToLower(sResult), llToLower(g_sNextsearch)))
+                                g_lPartialResults += [g_sBuildpath+"/"+sResult];
+                        }
                     } else {
-                        if(g_sNextsearch!="") {
-                            list tlist=llParseString2List(sMsg,[","],[]);
-                            integer i=llGetListLength(tlist);
-                            string found;
-                            string test;
-                            while(i) {
-                                --i;
-                                test=llList2String(tlist,i);
-                                if(~llSubStringIndex(llToLower(test),llToLower(g_sNextsearch))) {
-                                    i=0;
-                                    found=test;
-                                }
-                            }
-                            if(found=="") {
-                                 llMessageLinked(LINK_DIALOG,NOTIFY,"0"+g_sNextsearch+" subfolder not found",g_kAsyncMenuUser);
-                                 return;
-                            } else sMsg=g_sBuildpath+"/"+found;
-                            g_sNextsearch="";
-                            g_sBuildpath="";
-                        }
-                        if ((llSubStringIndex(sMsg,",") >=0) && (g_iRLVaOn)) { //we have multiple results, bring up a menu
-                            list lMultiFolders = llParseString2List(sMsg,[","],[]);
-                            string sPrompt = "Multiple results found.  Please select an item\n";
-                            sPrompt += "Current action is "+g_sFolderType+"\n";
-                            Dialog(g_kAsyncMenuUser, sPrompt, lMultiFolders, [UPMENU], 0, iChan, "MultipleFoldersOnSearch");
-                            return;
-                        }
-                        RlvSay("@"+llGetSubString(g_sFolderType,6,-1)+":"+sMsg+"=force");
-                        addToHistory(sMsg);
-                        llMessageLinked(LINK_DIALOG,NOTIFY,"1"+"Now "+llGetSubString(g_sFolderType,6,11)+"ing "+sMsg,g_kAsyncMenuUser);
+                        g_lToCheck = lMultiFolders;
+                        g_lPartialResults = []; // clear in case previous search was interrupted
                     }
+                    if (g_lToCheck) {
+                        sResult = llList2String(g_lToCheck, 0);
+                        g_lToCheck = llDeleteSubList(g_lToCheck, 0, 0);
+                        iIndex = llSubStringIndex(llToLower(sResult), llToLower(g_sFirstsearch));
+                        g_sBuildpath = llGetSubString(sResult, 0, iIndex);
+                        sResult = llDeleteSubString(sResult, 0, iIndex);
+                        iIndex = llSubStringIndex(sResult, "/");
+                        g_sBuildpath += llGetSubString(sResult, 0, iIndex);
+                        SearchRequest("@getinv:"+g_sBuildpath);
+                        return;
+                    }
+                    g_sFirstsearch = "";
+                    g_sNextsearch = "";
+                    g_sBuildpath = "";
+                    lMultiFolders = g_lPartialResults;
+                    iResults = llGetListLength(lMultiFolders);
+                    g_lPartialResults = []; // clear to save memory
                 }
-                if (g_lSearchList!=[]) handleMultiSearch();
+                if (iResults == 0) {
+                    llMessageLinked(LINK_DIALOG, NOTIFY, "0No folder found.", g_kAsyncMenuUser);
+                    if (g_lSearchList != [])
+                        handleMultiSearch();
+                } else if (iResults > 1) {
+                    string sPrompt = "Multiple results found. Please select an item to "+llGetSubString(g_sFolderType,6,-1)+":\n";
+                    Dialog(g_kAsyncMenuUser, sPrompt, lMultiFolders, [UPMENU], 0, iChan, "MultipleFoldersOnSearch");
+                } else {
+                    HandleSearchResult(llList2String(lMultiFolders, 0), g_kAsyncMenuUser);
+                }
             }
         }
     }
 
     timer() {
-        llListenRemove(g_iListener);
-        llSetTimerEvent(0.0);
+        SearchRequest("");
     }
 }
