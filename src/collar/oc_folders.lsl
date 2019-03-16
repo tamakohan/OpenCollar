@@ -116,19 +116,10 @@ list g_lHistory;
 
 integer g_iDebug = 0;
 
-/*
-integer g_iProfiled;
-Debug(string sStr) {
-    //if you delete the first // from the preceeding and following  lines,
-    //  profiling is off, debug is off, and the compiler will remind you to
-    //  remove the debug calls from the code, we're back to production mode
-    if (!g_iProfiled){
-        g_iProfiled=1;
-        llScriptProfiler(1);
-    }
-    llOwnerSay(llGetScriptName() + "(min free:"+(string)(llGetMemoryLimit()-llGetSPMaxMemory())+")["+(string)llGetFreeMemory()+"] :\n" + sStr);
+DebugFreeMem() {
+    if (g_iDebug)
+        llOwnerSay(llGetScriptName()+": "+(string)llGetFreeMemory()+" bytes free");
 }
-*/
 
 RlvSay(string sCmd) {
     if (g_iDebug)
@@ -600,9 +591,8 @@ default {
     }
 
     state_entry() {
-        //llSetMemoryLimit(65536);
         g_kWearer = llGetOwner();
-        //Debug("Starting");
+        DebugFreeMem();
     }
 
     link_message(integer iSender, integer iNum, string sStr, key kID) {
@@ -819,6 +809,7 @@ integer iMenuIndex = llListFindList(g_lMenuIDs, [kID]);
                 }
             } else if (sToken == g_sGlobalToken+"debug") {
                 g_iDebug = (integer) sValue;
+                DebugFreeMem();
             }
         } else if (iNum == LINK_UPDATE) {
             if (sStr == "LINK_DIALOG") LINK_DIALOG = iSender;
