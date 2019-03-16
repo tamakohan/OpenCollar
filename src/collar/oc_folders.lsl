@@ -92,6 +92,15 @@ integer g_iAsyncMenuRequested = FALSE;
 string g_sFolderType; //what to do with those folders
 string g_sCurrentFolder;
 
+integer g_iQuickCount;
+integer g_iQuickWorn;
+list g_lQuickFolders;
+
+integer g_iLastQuickCount;
+integer g_iLastQuickTarget;
+integer g_iLastQuickWorn;
+list g_lLastQuickFolders;
+
 list g_lOutfit; //saved folder list
 list g_lToCheck; //stack of folders to check, used for subfolder tree search
 
@@ -147,6 +156,7 @@ addToHistory(string folder) {
 }
 
 ParentFolder() {
+    g_iLastQuickCount = -1;
     list lFolders = llParseString2List(g_sCurrentFolder,["/"],[]);
     g_iPage = 0; // changing the folder also means going back to first page
     if (llGetListLength(lFolders)>1) {
@@ -211,29 +221,93 @@ RootActionsMenu(key kAv, integer iAuth) {
 FolderActionsMenu(integer iState, key kAv, integer iAuth) {
     integer iStateThis = iState / 10;
     integer iStateSub = iState % 10;
+    integer iHaveBrowse = (g_sFolderType == "history");
     list lActions;
-    if (g_sFolderType == "history") lActions += "Browse";
+    
     g_sFolderType += "_actions";
-    if (!iStateSub) g_sFolderType += "_sub";
+    if (!iStateSub)
+        g_sFolderType += "_sub";
 
+    string sPrompt = "\n[RLV Folders]\n\nCurrent folder is " + RelativeFolder() + ".";
     if (g_sCurrentFolder != "") {
         integer iIndex = llListFindList(g_lFolderLocks, [g_sCurrentFolder]);
         integer iLock;
         if (~iIndex) iLock = llList2Integer(g_lFolderLocks, iIndex+1);
 
-        if ( iStateThis == 1 || iStateThis == 2) // there are items that can be added in current folder
+        if (iStateThis == 1 || iStateThis == 2) // there are items that can be added in current folder
             lActions += [ADD, lockFolderButton(iLock, 0, iAuth)];
-        if ( iStateThis == 2 || iStateThis == 3) // there are items that can be removed
-            lActions += [DETACH,  lockFolderButton(iLock, 1, iAuth)];
-        if ( iStateSub == 1 || iStateSub == 2) // there are items that can be added in descendant folder
-            lActions += [ADD_ALL,  lockFolderButton(iLock, 2, iAuth)];
-        if ( iStateSub == 2 || iStateSub == 3) // there are items that can be removed from descendant folders
-            lActions += [DETACH_ALL,  lockFolderButton(iLock, 3, iAuth)];
+        if (iStateThis == 2 || iStateThis == 3) // there are items that can be removed
+            lActions += [DETACH, lockFolderButton(iLock, 1, iAuth)];
+        if (iStateSub == 1 || iStateSub == 2) // there are items that can be added in descendant folder
+            lActions += [ADD_ALL, lockFolderButton(iLock, 2, iAuth)];
+        if (iStateSub == 2 || iStateSub == 3) // there are items that can be removed from descendant folders
+            lActions += [DETACH_ALL, lockFolderButton(iLock, 3, iAuth)];
+        if (g_iLastQuickCount == 1) {
+            if (g_iLastQuickTarget == g_iLastQuickWorn)
+                lActions += ["◀◀", "▶▶"];
+            else
+                lActions += ["▶◀", "-"];
+            sPrompt += (string) [" [", g_iLastQuickTarget+1, "/", llGetListLength(g_lLastQuickFolders), "]"];
+        }
     }
-    string sPrompt = "\n[RLV Folders]\n\nCurrent folder is " + RelativeFolder() + ".\n";
-    sPrompt += "\nWhat do you want to do?";
+    sPrompt += "\n\nWhat do you want to do?";
+    
+    integer iIndex;
+    integer iRows = llGetListLength(lActions) / 2;
+    for (iIndex = 2; iIndex < iRows * 3 - 1; iIndex += 3) {
+        string sInsert = "-";
+        if (iRows == 5 && iIndex == 2) {
+            sInsert = llList2String(lActions, -2);
+        } else if (iRows == 5 && iIndex == 5) {
+            sInsert = llList2String(lActions, -1);
+        } else if (iHaveBrowse) {
+            sInsert = "Browse";
+            iHaveBrowse = FALSE;
+        }
+        lActions = llListInsertList(lActions, [sInsert], iIndex);
+    }
+    if (iRows == 5)
+        lActions = llList2List(lActions, 0, 10);    
+    if (iHaveBrowse)
+        lActions += "Browse";
 
     Dialog(kAv, sPrompt, lActions, [UPMENU], 0, iAuth, "FolderActions");
+}
+
+QuickNavigate(string sMessage, key kAv) {
+    if (sMessage == "◀◀") {
+        g_iLastQuickTarget -= 1;
+        if (g_iLastQuickTarget == -1) {
+            g_iLastQuickTarget = llGetListLength(g_lLastQuickFolders) - 1;
+        }
+    } else if (sMessage == "▶▶") {
+        g_iLastQuickTarget += 1;
+        if (g_iLastQuickTarget == llGetListLength(g_lLastQuickFolders)) {
+            g_iLastQuickTarget = 0;
+        }
+    }
+
+    integer iTempCount = g_iLastQuickCount;
+    ParentFolder();
+
+    g_iLastQuickCount = iTempCount;
+    g_iLastQuickWorn = g_iLastQuickTarget;
+    g_iPage = g_iLastQuickWorn / 7; // number of items in a menu page (five are reserved: actions, parent, left, right, back)
+
+    string sCommon = g_sCurrentFolder;
+    string sButton = llList2String(g_lLastQuickFolders, g_iLastQuickWorn);
+    g_iLastFolderState = StateFromButton(sButton);
+    g_sCurrentFolder += "/" + FolderFromButton(sButton);
+
+    string sRlvCmd = "detachallthis:" + g_sCurrentFolder + "=n,detachall:" + sCommon + "=force,attachover:" + g_sCurrentFolder + "=force,detachallthis:" + g_sCurrentFolder + "=y";
+
+    if (g_iLastFolderState >= 10)
+        g_iLastFolderState = 30 + (g_iLastFolderState % 10);
+    if (g_iLastFolderState % 10)
+        g_iLastFolderState = 3 + ((g_iLastFolderState / 10) * 10);
+
+    llMessageLinked(LINK_RLV, RLV_CMD, sRlvCmd, NULL_KEY);
+    llMessageLinked(LINK_DIALOG, NOTIFY, "1"+"Now switching to "+g_sCurrentFolder, kAv);
 }
 
 string folderIcon(integer iState) {
@@ -359,12 +433,21 @@ FolderBrowseMenu(string sStr) {
         lUtilityButtons += [ACTIONS_CURRENT];
     }
     //else lUtilityButtons += [ROOT_ACTIONS];
-    for (i=0;i<llGetListLength(sData);i++) {
-        lItem=llParseString2List(llList2String(sData,i),["|"],[]);
-        string sFolder = llList2String(lItem,0);
-        iWorn=llList2Integer(lItem,1);
-        if (iWorn != 0) lFolders += [folderIcon(iWorn) + sFolder];
+    g_iQuickCount = 0;
+    for (i=0; i < llGetListLength(sData); i++) {
+        lItem = llParseString2List(llList2String(sData, i), ["|"], []);
+        string sFolder = llList2String(lItem, 0);
+        iWorn = llList2Integer(lItem, 1);
+        if (iWorn != 0)
+            lFolders += [folderIcon(iWorn) + sFolder];
+        if (iWorn == 3 || iWorn == 30 || iWorn == 33) {
+            g_iQuickCount += 1;
+            g_iQuickWorn = i;
+        }
     }
+    if (g_iQuickCount != 1)
+        g_iQuickWorn = -1;
+    g_lQuickFolders = lFolders;
     sPrompt += "\n- Click "+ACTIONS_CURRENT+" to manage this folder content.\n- Click one of the subfolders to browse it.\n";
     if (g_sCurrentFolder != "" && g_sCurrentFolder != g_sRootFolder) {sPrompt += "- Click "+PARENT+" to browse parent folder.\n"; lUtilityButtons += [PARENT];}
     sPrompt += "- Click "+UPMENU+" to go back to "+g_sParentMenu+".\n";
@@ -467,18 +550,22 @@ SetRoot(string sValue, integer iFromUser) {
 
 UserCommand(integer iNum, string sStr, key kID) {
     if (llToLower(sStr) == "folders" || llToLower(sStr) == "#rlv" || sStr == "menu # Folders") {
+        g_iLastQuickCount = -1;
         g_sCurrentFolder = g_sRootFolder;
         QueryFolders("browse");
         SetAsyncMenu(kID, iNum);
-    } else if (llToLower(sStr) == "history" || sStr == "menu ﹟RLV History")
+    } else if (llToLower(sStr) == "history" || sStr == "menu ﹟RLV History") {
+        g_iLastQuickCount = -1;
         HistoryMenu(kID, iNum);
-    else if (llToLower(llGetSubString(sStr, 0, 4)) == "#rlv ") {
+    } else if (llToLower(llGetSubString(sStr, 0, 4)) == "#rlv ") {
+        g_iLastQuickCount = -1;
         SetAsyncMenu(kID, iNum);
         g_sFolderType = "searchbrowse";
         string sPattern = llDeleteSubString(sStr,0, 4);
         llMessageLinked(LINK_DIALOG,NOTIFY,"0"+"Searching folder containing string \"" + sPattern + "\" for browsing.",g_kWearer);
         searchSingle(sPattern);
     } else if (sStr=="save") {
+        g_iLastQuickCount = -1;
         g_sCurrentFolder = g_sRootFolder;
         g_lOutfit=[];
         g_lToCheck=[];
@@ -589,15 +676,23 @@ integer iMenuIndex = llListFindList(g_lMenuIDs, [kID]);
                     } else if (sMessage == ACTIONS_CURRENT) {
                         FolderActionsMenu(g_iLastFolderState, kAv, iAuth);
                         return;
-                    } else if (sMessage == PARENT)
+                    } else if (sMessage == PARENT) {
                         ParentFolder();
-                    else { //we got a folder.  send the RLV command to remove/attach it.
+                    } else {
+                        // a folder name was clicked
                         integer iState = StateFromButton(sMessage);
                         string folder = FolderFromButton(sMessage);
                         g_iLastFolderState = iState;
-                        if (g_sCurrentFolder == "") g_sCurrentFolder = folder;
-                        else g_sCurrentFolder  += "/" + folder;
-                        if ((iState % 10) == 0) { // open actions menu if requested folder does not have subfolders
+                        g_iLastQuickCount = g_iQuickCount;
+                        g_iLastQuickTarget = llListFindList(g_lQuickFolders, [sMessage]);
+                        g_iLastQuickWorn = g_iQuickWorn;
+                        g_lLastQuickFolders = g_lQuickFolders;
+                        if (g_sCurrentFolder == "")
+                            g_sCurrentFolder = folder;
+                        else
+                            g_sCurrentFolder += "/" + folder;
+                        if ((iState % 10) == 0) {
+                            // open actions menu if requested folder does not have subfolders
                             FolderActionsMenu(iState, kAv, iAuth);
                             return;
                         }
@@ -611,19 +706,24 @@ integer iMenuIndex = llListFindList(g_lMenuIDs, [kID]);
                     if (sMessage == ADD) {
                         llMessageLinked(LINK_RLV,RLV_CMD, "attachover:" + g_sCurrentFolder + "=force", NULL_KEY);
                         llMessageLinked(LINK_DIALOG,NOTIFY,"1"+"Now adding "+g_sCurrentFolder,kAv);
+                        if (~g_iLastQuickCount)
+                            g_iLastQuickCount += 1;
                         iStateThis = 3;
                     } else if (sMessage == REPLACE) {
                         llMessageLinked(LINK_RLV,RLV_CMD, "attach:" + g_sCurrentFolder + "=force", NULL_KEY);
-                        addToHistory(g_sCurrentFolder);
                         llMessageLinked(LINK_DIALOG,NOTIFY,"1"+"Now attaching "+g_sCurrentFolder,kAv);
                         iStateThis = 3;
                     } else if (sMessage == DETACH) {
                         llMessageLinked(LINK_RLV,RLV_CMD, "detach:" + g_sCurrentFolder + "=force", NULL_KEY);
                         llMessageLinked(LINK_DIALOG,NOTIFY,"1"+"Now detaching "+g_sCurrentFolder,kAv);
+                        if (~g_iLastQuickCount)
+                            g_iLastQuickCount -= 1;
                         iStateThis = 1;
                     } else if (sMessage == ADD_ALL) {
                         llMessageLinked(LINK_RLV,RLV_CMD, "attachallover:" + g_sCurrentFolder + "=force", NULL_KEY);
                         llMessageLinked(LINK_DIALOG,NOTIFY,"1"+"Now adding everything in "+g_sCurrentFolder,kAv);
+                        if (~g_iLastQuickCount)
+                            g_iLastQuickCount += 1;
                         iStateSub = 3;
                     } else if (sMessage == REPLACE_ALL) {
                         llMessageLinked(LINK_RLV,RLV_CMD, "attachall:" + g_sCurrentFolder  + "=force", NULL_KEY);
@@ -632,7 +732,13 @@ integer iMenuIndex = llListFindList(g_lMenuIDs, [kID]);
                     } else if (sMessage == DETACH_ALL) {
                         llMessageLinked(LINK_RLV,RLV_CMD, "detachall:" + g_sCurrentFolder  + "=force", NULL_KEY);
                         llMessageLinked(LINK_DIALOG,NOTIFY,"1"+"Now detaching everything in "+g_sCurrentFolder,kAv);
+                        if (~g_iLastQuickCount)
+                            g_iLastQuickCount -= 1;
                         iStateSub = 1;
+                    } else if (~llSubStringIndex("▶▶◀◀", sMessage)) {
+                        QuickNavigate(sMessage, kAv);
+                        iStateThis = g_iLastFolderState / 10;
+                        iStateSub = g_iLastFolderState % 10;
                     } else if (sMessage == lockFolderButton(0x00, 0, 0)) {
                         updateFolderLocks(g_sCurrentFolder, 0x01, 0x10);
                         llMessageLinked(LINK_DIALOG,NOTIFY,"1"+"Now wearing "+g_sCurrentFolder+ " is forbidden (this overrides parent exceptions).",kAv);
@@ -728,6 +834,7 @@ integer iMenuIndex = llListFindList(g_lMenuIDs, [kID]);
             RlvEcho(sMsg);
             if (g_sFolderType=="browse") {
                 if (sMsg == "") { // try again if the folder name was wrong (may happen if the inventory changed)
+                    g_iLastQuickCount = -1;
                     g_sCurrentFolder = g_sRootFolder;
                     g_iPage = 0;
                     QueryFolders("browse");
@@ -740,6 +847,7 @@ integer iMenuIndex = llListFindList(g_lMenuIDs, [kID]);
             else if (llGetSubString(g_sFolderType,0,5)=="search") {
                 if (sMsg=="") llMessageLinked(LINK_DIALOG,NOTIFY,"0"+sMsg+"No folder found.",g_kAsyncMenuUser);
                 else if (llGetSubString(g_sFolderType,6,-1)=="browse") {
+                    g_iLastQuickCount = -1;
                     g_sCurrentFolder = sMsg;
                     QueryFolders("browse");
                 } else {
