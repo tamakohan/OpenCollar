@@ -412,7 +412,7 @@ FolderBrowseMenu(string sStr) {
     integer iWorn;
     list lFolders = [];
     // now add the button for wearing all recursively when it makes sense
-    if (g_sCurrentFolder!="") {
+    if (g_sCurrentFolder != "" && g_sCurrentFolder != g_sRootFolder) {
         lItem=llParseString2List(sFirst,["|"],[]);
         iWorn=llList2Integer(lItem,0);
         g_iLastFolderState=iWorn;
