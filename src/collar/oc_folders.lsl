@@ -158,7 +158,7 @@ QueryFolders(string sType) {
     g_iFolderRLV = 9999 + llRound(llFrand(9999999.0));
     g_iListener = llListen(g_iFolderRLV, "", llGetOwner(), "");
     llSetTimerEvent(g_iTimeOut);
-    llMessageLinked(LINK_RLV,RLV_CMD, "getinvworn:"+g_sCurrentFolder+"=" + (string)g_iFolderRLV, NULL_KEY);
+    RlvSay("@getinvworn:"+g_sCurrentFolder+"=" + (string)g_iFolderRLV);
 }
 
 string lockFolderButton(integer iLockState, integer iLockNum, integer iAuth) {
@@ -267,14 +267,14 @@ QuickNavigate(string sMessage, key kAv) {
     g_iLastFolderState = StateFromButton(sButton);
     g_sCurrentFolder += "/" + FolderFromButton(sButton);
 
-    string sRlvCmd = "detachallthis:" + g_sCurrentFolder + "=n,detachall:" + sCommon + "=force,attachover:" + g_sCurrentFolder + "=force,detachallthis:" + g_sCurrentFolder + "=y";
+    string sRlvCmd = "@detachallthis:" + g_sCurrentFolder + "=n,detachall:" + sCommon + "=force,attachover:" + g_sCurrentFolder + "=force,detachallthis:" + g_sCurrentFolder + "=y";
 
     if (g_iLastFolderState >= 10)
         g_iLastFolderState = 30 + (g_iLastFolderState % 10);
     if (g_iLastFolderState % 10)
         g_iLastFolderState = 3 + ((g_iLastFolderState / 10) * 10);
 
-    llMessageLinked(LINK_RLV, RLV_CMD, sRlvCmd, NULL_KEY);
+    RlvSay(sRlvCmd);
     llMessageLinked(LINK_DIALOG, NOTIFY, "1"+"Now switching to "+g_sCurrentFolder, kAv);
 }
 
@@ -445,10 +445,10 @@ searchSingle(string sItem) {
         sItem=g_sFirstsearch;
     }
     llSetTimerEvent(g_iTimeOut);
-    if ((g_iRLVaOn) && (g_sNextsearch == "")) { //use multiple folder matching from RLVa if we have it
-        RlvSay("@findfolders:"+sItem+"="+(string)g_iFolderRLV); //Unstored one-shot commands are better performed locally to save the linked message.
-    } else RlvSay("@findfolder:"+sItem+"="+(string)g_iFolderRLV); //Unstored one-shot commands are better performed locally to save the linked message.
-
+    if (g_iRLVaOn && g_sNextsearch == "")
+        RlvSay("@findfolders:"+sItem+"="+(string)g_iFolderRLV); //use multiple folder matching from RLVa if we have it
+    else
+        RlvSay("@findfolder:"+sItem+"="+(string)g_iFolderRLV);
 }
 
 // set a dialog to be requested after the next viewer answer
@@ -541,7 +541,7 @@ integer iMenuIndex = llListFindList(g_lMenuIDs, [kID]);
                             QueryFolders("browse");
                             return;
                     }
-                    llMessageLinked(LINK_RLV,RLV_CMD, llGetSubString(g_sFolderType,6,-1)+":"+sMessage+"=force", NULL_KEY);
+                    RlvSay("@"+llGetSubString(g_sFolderType,6,-1)+":"+sMessage+"=force");
                     addToHistory(sMessage);
                     llMessageLinked(LINK_DIALOG,NOTIFY,"1"+"Now "+llGetSubString(g_sFolderType,6,11)+"ing "+sMessage,kAv);
                 } else if (sMenu == "FolderBrowse") {
@@ -579,25 +579,25 @@ integer iMenuIndex = llListFindList(g_lMenuIDs, [kID]);
                     integer iStateThis = g_iLastFolderState / 10;
                     integer iStateSub = g_iLastFolderState % 10;
                     if (sMessage == ADD) {
-                        llMessageLinked(LINK_RLV,RLV_CMD, "attachover:" + g_sCurrentFolder + "=force", NULL_KEY);
+                        RlvSay("@attachover:" + g_sCurrentFolder + "=force");
                         llMessageLinked(LINK_DIALOG,NOTIFY,"1"+"Now adding "+g_sCurrentFolder,kAv);
                         if (~g_iLastQuickCount)
                             g_iLastQuickCount += 1;
                         iStateThis = 3;
                     } else if (sMessage == DETACH) {
-                        llMessageLinked(LINK_RLV,RLV_CMD, "detach:" + g_sCurrentFolder + "=force", NULL_KEY);
+                        RlvSay("@detach:" + g_sCurrentFolder + "=force");
                         llMessageLinked(LINK_DIALOG,NOTIFY,"1"+"Now detaching "+g_sCurrentFolder,kAv);
                         if (~g_iLastQuickCount)
                             g_iLastQuickCount -= 1;
                         iStateThis = 1;
                     } else if (sMessage == ADD_ALL) {
-                        llMessageLinked(LINK_RLV,RLV_CMD, "attachallover:" + g_sCurrentFolder + "=force", NULL_KEY);
+                        RlvSay("@attachallover:" + g_sCurrentFolder + "=force");
                         llMessageLinked(LINK_DIALOG,NOTIFY,"1"+"Now adding everything in "+g_sCurrentFolder,kAv);
                         if (~g_iLastQuickCount)
                             g_iLastQuickCount += 1;
                         iStateSub = 3;
                     } else if (sMessage == DETACH_ALL) {
-                        llMessageLinked(LINK_RLV,RLV_CMD, "detachall:" + g_sCurrentFolder  + "=force", NULL_KEY);
+                        RlvSay("@detachall:" + g_sCurrentFolder  + "=force");
                         llMessageLinked(LINK_DIALOG,NOTIFY,"1"+"Now detaching everything in "+g_sCurrentFolder,kAv);
                         if (~g_iLastQuickCount)
                             g_iLastQuickCount -= 1;
@@ -754,7 +754,7 @@ integer iMenuIndex = llListFindList(g_lMenuIDs, [kID]);
                             Dialog(g_kAsyncMenuUser, sPrompt, lMultiFolders, [UPMENU], 0, iChan, "MultipleFoldersOnSearch");
                             return;
                         }
-                        llMessageLinked(LINK_RLV,RLV_CMD, llGetSubString(g_sFolderType,6,-1)+":"+sMsg+"=force", NULL_KEY);
+                        RlvSay("@"+llGetSubString(g_sFolderType,6,-1)+":"+sMsg+"=force");
                         addToHistory(sMsg);
                         llMessageLinked(LINK_DIALOG,NOTIFY,"1"+"Now "+llGetSubString(g_sFolderType,6,11)+"ing "+sMsg,g_kAsyncMenuUser);
                     }
