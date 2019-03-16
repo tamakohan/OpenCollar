@@ -299,7 +299,7 @@ QuickNavigate(string sMessage, key kAv) {
     g_iLastFolderState = StateFromButton(sButton);
     g_sCurrentFolder += "/" + FolderFromButton(sButton);
 
-    string sRlvCmd = "@detachallthis:" + g_sCurrentFolder + "=n,detachall:" + sCommon + "=force,attachover:" + g_sCurrentFolder + "=force,detachallthis:" + g_sCurrentFolder + "=y";
+    string sRlvCmd = "@detachallthis:" + g_sCurrentFolder + "=n,detachall:" + sCommon + "=force,attachallover:" + g_sCurrentFolder + "=force,detachallthis:" + g_sCurrentFolder + "=y";
 
     if (g_iLastFolderState >= 10)
         g_iLastFolderState = 30 + (g_iLastFolderState % 10);
