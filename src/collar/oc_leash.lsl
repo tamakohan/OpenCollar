@@ -1,4 +1,6 @@
-// This file is part of OpenCollar.
+// This file is part of Tama's OpenCollar.
+// Modifications copyright (c) 2018 tamakohan
+// Originally part of OpenCollar.
 // Copyright (c) 2008 - 2016 Nandana Singh, Lulu Pink, Garvin Twine,    
 // Joy Stipe, Cleo Collins, Satomi Ahn, Master Starship, Toy Wylie,    
 // Kaori Gray, Sei Lisa, Wendy Starfall, littlemousy, Romka Swallowtail,  

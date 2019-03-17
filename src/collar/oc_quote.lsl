@@ -1,4 +1,8 @@
-// This file is part of OpenCollar.
+// This file is part of Tama's OpenCollar.
+// Copyright (c) 2018 tamakohan
+// Licensed under the GPLv2.
+
+// Contains large portions of code from other OpenCollar scripts.
 // Copyright (c) 2009 - 2016 Cleo Collins, Nandana Singh, Satomi Ahn,   
 // Joy Stipe, Wendy Starfall, Medea Destiny, littlemousy,         
 // Romka Swallowtail, Garvin Twine et al.  

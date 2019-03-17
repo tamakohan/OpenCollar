@@ -1,4 +1,6 @@
-// This file is part of OpenCollar.
+// This file is part of Tama's OpenCollar.
+// Modifications copyright (c) 2018 - 2019 tamakohan
+// Originally part of OpenCollar.
 // Copyright (c) 2008 - 2017 Satomi Ahn, Nandana Singh, Wendy Starfall,  
 // Medea Destiny, Romka Swallowtail, littlemousy, Sumi Perl,        
 // Garvin Twine et al. 

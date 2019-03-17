@@ -1,8 +1,12 @@
-// This file is part of OpenCollar.
-// Copyright (c) 2009 - 2018 Cleo Collins, Nandana Singh, Satomi Ahn,   
-// Joy Stipe, Wendy Starfall, Medea Destiny, littlemousy,         
-// Romka Swallowtail, Garvin Twine, tamakohan et al.
-// Licensed under the GPLv2.  See LICENSE for full details. 
+// This file is part of Tama's OpenCollar.
+// Copyright (c) 2018 tamakohan
+// Licensed under the GPLv2.
+
+// Contains large portions of code from other OpenCollar scripts.
+// Copyright (c) 2009 - 2017 Cleo Collins, Nandana Singh, Satomi Ahn,
+// Joy Stipe, Wendy Starfall, Medea Destiny, littlemousy,
+// Romka Swallowtail, Garvin Twine et al.
+// Licensed under the GPLv2.  See LICENSE for full details.
 
 // Contains large portions of code from the OpenMuzzle main control script for OC 3.998
 // licensed under GPLv2 by WhiteFire Sondergaard of Lascivious Vulpine.

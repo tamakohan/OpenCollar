@@ -1,4 +1,6 @@
-// This file is part of OpenCollar.
+// This file is part of Tama's OpenCollar.
+// Modifications copyright (c) 2018 tamakohan
+// Originally part of OpenCollar.
 // Copyright (c) 2008 - 2017 Nandana Singh, Garvin Twine, Cleo Collins,  
 // Master Starship, Satomi Ahn, Joy Stipe, Wendy Starfall, littlemousy,  
 // Romka Swallowtail, Sumi Perl et al.  

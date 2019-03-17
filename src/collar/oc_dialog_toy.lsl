@@ -1,4 +1,6 @@
-// This file is part of OpenCollar.
+// This file is part of Tama's OpenCollar.
+// Modifications copyright (c) 2018 tamakohan
+// Originally part of OpenCollar.
 // Copyright (c) 2007 - 2017 Schmobag Hogfather, Nandana Singh,      
 // Cleo Collins, Satomi Ahn, Joy Stipe, Wendy Starfall, littlemousy,    
 // Romka Swallowtail, Garvin Twine et al.  
